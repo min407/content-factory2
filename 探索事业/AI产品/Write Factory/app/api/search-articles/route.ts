@@ -90,6 +90,19 @@ export async function POST(request: NextRequest) {
 
     // 检查API响应状态
     if (data.code !== 0) {
+      // 对于测试连接，某些错误码实际上表示连接成功
+      const successCodes = [20001]; // 金额不足等表示API Key有效
+      const isTestConnection = body.limit === 1 && body.kw === 'test';
+
+      if (isTestConnection && successCodes.includes(data.code)) {
+        return NextResponse.json({
+          success: true,
+          data: data,
+          message: `API连接成功 (${data.msg})`,
+          isTestSuccess: true
+        })
+      }
+
       console.error('API返回错误:', data.msg)
       return NextResponse.json(
         { error: `API错误: ${data.msg || '未知错误'}` },
