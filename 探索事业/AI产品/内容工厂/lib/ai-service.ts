@@ -3,7 +3,13 @@
  * 提供与OpenAI兼容API的调用服务
  */
 
-import { ArticleSummary, TopicInsight } from '@/types/ai-analysis'
+import {
+  ArticleSummary,
+  TopicInsight,
+  TopicWithHistory,
+  GeneratedArticle,
+  CreationParams
+} from '@/types/ai-analysis'
 
 // OpenAI配置从环境变量读取
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || ''
@@ -288,13 +294,13 @@ JSON格式输出：
  */
 export async function generateWordCloud(summaries: ArticleSummary[]): Promise<Array<{ word: string; count: number; size: number }>> {
   const allKeywords = summaries.flatMap(s => s.keywords || [])
-  
+
   // 统计词频
   const wordCount: Record<string, number> = {}
   allKeywords.forEach(word => {
     wordCount[word] = (wordCount[word] || 0) + 1
   })
-  
+
   // 转换为数组并排序
   const sorted = Object.entries(wordCount)
     .sort(([,a], [,b]) => b - a)
@@ -303,6 +309,361 @@ export async function generateWordCloud(summaries: ArticleSummary[]): Promise<Ar
       const size = Math.max(20, 48 - index * 2) // 递减大小
       return { word, count, size }
     })
-  
+
   return sorted
+}
+
+/**
+ * 基于选题三维度分析生成智能写作风格提示词
+ */
+export function generateWritingStylePrompt(topic: TopicWithHistory): string {
+  const { decisionStage, audienceScene, demandPainPoint } = topic
+
+  return `
+基于以下选题分析，自动调整写作风格：
+
+**决策阶段**: ${decisionStage.stage} - ${decisionStage.reason}
+**目标人群**: ${audienceScene.audience}
+**使用场景**: ${audienceScene.scene}
+**情绪痛点**: ${demandPainPoint.emotionalPain}
+**现实需求**: ${demandPainPoint.realisticPain}
+**期望获得**: ${demandPainPoint.expectation}
+
+请根据以上分析，采用最适合的：
+- 语气风格：${getRecommendedTone(decisionStage.stage, demandPainPoint.emotionalPain)}
+- 内容结构：${getRecommendedStructure(decisionStage.stage)}
+- 案例类型：${getRecommendedCaseType(audienceScene.audience)}
+- 互动方式：${getRecommendedInteraction(demandPainPoint.expectation)}
+`
+}
+
+/**
+ * 根据决策阶段和情绪痛点推荐语气风格
+ */
+function getRecommendedTone(stage: string, emotionalPain: string): string {
+  const toneMap = {
+    '觉察期': '温和引导，富有同理心',
+    '认知期': '专业权威，条理清晰',
+    '调研期': '客观对比，数据支撑',
+    '决策期': '鼓励行动，给予信心',
+    '行动期': '实用指导，步骤清晰',
+    '成果期': '激励分享，展示价值'
+  }
+  return toneMap[stage] || '专业客观'
+}
+
+/**
+ * 根据决策阶段推荐内容结构
+ */
+function getRecommendedStructure(stage: string): string {
+  const structureMap = {
+    '觉察期': '问题引入 → 现状分析 → 启发思考',
+    '认知期': '概念解释 → 核心要点 → 实用建议',
+    '调研期': '对比分析 → 优缺点总结 → 选择指导',
+    '决策期': '目标设定 → 行动步骤 → 激励鼓舞',
+    '行动期': '问题识别 → 解决方案 → 注意事项',
+    '成果期': '成果展示 → 经验总结 → 提升方向'
+  }
+  return structureMap[stage] || '标准结构'
+}
+
+/**
+ * 根据目标人群推荐案例类型
+ */
+function getRecommendedCaseType(audience: string): string {
+  if (audience.includes('职场妈妈') || audience.includes('宝妈')) {
+    return '真实故事案例，生活化场景'
+  } else if (audience.includes('程序员') || audience.includes('技术')) {
+    return '技术实践案例，数据驱动'
+  } else if (audience.includes('设计师') || audience.includes('创作')) {
+    return '设计作品案例，视觉展示'
+  } else if (audience.includes('创业') || audience.includes('老板')) {
+    return '商业实战案例，ROI导向'
+  }
+  return '通用实用案例'
+}
+
+/**
+ * 根据期望需求推荐互动方式
+ */
+function getRecommendedInteraction(expectation: string): string {
+  if (expectation.includes('解决方案') || expectation.includes('指导')) {
+    return '提供可操作步骤，引导实践'
+  } else if (expectation.includes('心理安慰') || expectation.includes('鼓励')) {
+    return '情感共鸣，积极引导'
+  } else if (expectation.includes('学习') || expectation.includes('技能')) {
+    return '知识讲解，技能训练'
+  }
+  return '信息分享，启发思考'
+}
+
+/**
+ * 生成单个AI文章
+ */
+export async function generateSingleArticle(params: CreationParams): Promise<GeneratedArticle> {
+  const { topic, length, style, imageCount, uniqueAngle } = params
+
+  // 1. 生成智能写作提示词
+  const stylePrompt = generateWritingStylePrompt(topic)
+
+  // 2. 获取字数范围
+  const wordCount = getWordCountRange(length)
+
+  // 3. 构建完整文章生成提示词
+  const articlePrompt = `
+请基于以下选题洞察，生成一篇高质量的文章：
+
+**选题**: ${topic.title}
+**描述**: ${topic.description}
+**重要指数**: ${topic.confidence}%
+${uniqueAngle ? `**独特角度**: ${uniqueAngle}` : ''}
+
+${stylePrompt}
+
+**写作要求**:
+- 字数：${wordCount}字
+- 风格：${style}
+- 结构：包含引人入胜的开头、主体内容、实用建议、总结展望
+- 内容：基于三维度分析提供有价值的内容
+- 语言：中文，流畅自然，适合微信公众号发布
+
+请生成完整的文章内容（包含标题）。
+`
+
+  // 4. 调用OpenAI生成文章
+  const articleContent = await callOpenAI([
+    { role: 'system', content: '你是专业的文章创作者，擅长基于深度洞察生成高质量内容。你的文章结构清晰，内容实用，语言优美。' },
+    { role: 'user', content: articlePrompt }
+  ], 0.7)
+
+  // 5. 生成配图
+  const images = await generateArticleImages(topic, imageCount)
+
+  // 6. 构建返回对象
+  return {
+    id: generateId(),
+    title: extractTitleFromContent(articleContent),
+    content: articleContent,
+    images,
+    wordCount: countWords(articleContent),
+    readingTime: calculateReadingTime(articleContent),
+    topicId: topic.id,
+    createdAt: new Date(),
+    parameters: params
+  }
+}
+
+/**
+ * 根据文章长度参数获取字数范围
+ */
+function getWordCountRange(length: string): string {
+  const lengthMap = {
+    '500-800': '600-800',
+    '800-1200': '900-1200',
+    '1000-1500': '1200-1500',
+    '1500-2000': '1600-2000',
+    '2000+': '2000-2500'
+  }
+  return lengthMap[length] || '1200-1500'
+}
+
+/**
+ * 从文章内容中提取标题
+ */
+function extractTitleFromContent(content: string): string {
+  const lines = content.split('\n').filter(line => line.trim())
+
+  // 查找第一个可能的标题（不包含#的行或者第一行#标题）
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (trimmed.startsWith('#')) {
+      return trimmed.replace(/^#+\s*/, '')
+    } else if (trimmed.length > 10 && trimmed.length < 50) {
+      return trimmed
+    }
+  }
+
+  // 如果没有找到合适的标题，使用内容的前30个字符
+  const firstLine = lines[0]?.trim() || ''
+  return firstLine.length > 30 ? firstLine.substring(0, 30) + '...' : firstLine || '未命名文章'
+}
+
+/**
+ * 统计文章字数
+ */
+function countWords(content: string): number {
+  // 中文字符计数 + 英文单词计数
+  const chineseChars = (content.match(/[\u4e00-\u9fa5]/g) || []).length
+  const englishWords = (content.match(/[a-zA-Z]+/g) || []).length
+  return chineseChars + englishWords
+}
+
+/**
+ * 计算阅读时间（分钟）
+ */
+function calculateReadingTime(content: string): number {
+  const wordCount = countWords(content)
+  // 假设每分钟阅读500字
+  return Math.max(1, Math.ceil(wordCount / 500))
+}
+
+/**
+ * 生成AI配图
+ */
+export async function generateArticleImages(topic: TopicWithHistory, imageCount: number): Promise<string[]> {
+  if (imageCount === 0) return []
+
+  const prompts = generateImagePrompts(topic, imageCount)
+  const images = []
+
+  for (const prompt of prompts) {
+    try {
+      const image = await generateSingleImage(prompt)
+      images.push(image)
+    } catch (error) {
+      console.error('图片生成失败:', error)
+      // 使用fallback图片
+      images.push(getFallbackImage(prompt))
+    }
+  }
+
+  return images
+}
+
+/**
+ * 根据选题内容生成图片提示词
+ */
+function generateImagePrompts(topic: TopicWithHistory, count: number): string[] {
+  const basePrompts = [
+    `${topic.audienceScene.audience}在${topic.audienceScene.scene}的场景插画，简洁现代风格，商务插画`,
+    `${topic.title}相关的概念图，信息图表风格，蓝色调`,
+    `${topic.demandPainPoint.expectation}的视觉化表达，积极向上风格，温暖色调`,
+    '现代办公场景插画，简洁扁平化设计',
+    '学习和成长主题插画，励志风格'
+  ]
+  return basePrompts.slice(0, count)
+}
+
+/**
+ * 生成单个AI图片（使用SiliconFlow API）
+ */
+async function generateSingleImage(prompt: string): Promise<string> {
+  const apiKey = process.env.SILICONFLOW_API_KEY
+  const apiBase = process.env.SILICONFLOW_API_BASE || 'https://api.siliconflow.cn/v1'
+  const model = process.env.SILICONFLOW_MODEL || 'Kwai-Kolors/Kolors'
+
+  if (!apiKey) {
+    throw new Error('SiliconFlow API key not configured')
+  }
+
+  const response = await fetch(`${apiBase}/images/generations`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      prompt: `${prompt}, high quality, professional illustration style, no text`,
+      n: 1,
+      size: '1024x1024',
+      response_format: 'url'
+    }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
+    throw new Error(`SiliconFlow API错误: ${error.error?.message || response.statusText}`)
+  }
+
+  const data = await response.json()
+  return data.data[0]?.url || ''
+}
+
+/**
+ * 获取fallback图片
+ */
+function getFallbackImage(prompt: string): string {
+  // 根据prompt关键词返回相关的Unsplash图片
+  const keywords = prompt.toLowerCase().match(/[\u4e00-\u9fa5]+|[a-z]+/gi) || []
+
+  if (keywords.some(k => k.includes('办公') || k.includes('工作'))) {
+    return 'https://source.unsplash.com/1024x1024/?office,workspace'
+  } else if (keywords.some(k => k.includes('学习') || k.includes('教育'))) {
+    return 'https://source.unsplash.com/1024x1024/?education,learning'
+  } else if (keywords.some(k => k.includes('创业') || k.includes('商业'))) {
+    return 'https://source.unsplash.com/1024x1024/?business,startup'
+  } else if (keywords.some(k => k.includes('家庭') || k.includes('生活'))) {
+    return 'https://source.unsplash.com/1024x1024/?family,lifestyle'
+  }
+
+  return 'https://source.unsplash.com/1024x1024/?technology,innovation'
+}
+
+/**
+ * 生成唯一ID
+ */
+function generateId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2)
+}
+
+/**
+ * 批量生成文章
+ */
+export async function generateBatchArticles(
+  topic: TopicWithHistory,
+  params: Omit<CreationParams, 'topic'> & { count: number },
+  onProgress?: (progress: number) => void
+): Promise<GeneratedArticle[]> {
+  const articles = []
+
+  for (let i = 0; i < params.count; i++) {
+    try {
+      // 为每篇文章生成独特的角度
+      const uniqueAngle = generateUniqueAnglePrompt(topic, i, params.count)
+
+      const article = await generateSingleArticle({
+        ...params,
+        topic,
+        uniqueAngle
+      })
+
+      articles.push(article)
+
+      // 更新进度
+      if (onProgress) {
+        onProgress(((i + 1) / params.count) * 100)
+      }
+
+      // 添加小延迟避免API限制
+      if (i < params.count - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
+
+    } catch (error) {
+      console.error(`第${i + 1}篇文章生成失败:`, error)
+    }
+  }
+
+  return articles
+}
+
+/**
+ * 为每篇文章生成独特的角度
+ */
+function generateUniqueAnglePrompt(topic: TopicWithHistory, index: number, total: number): string {
+  const angles = [
+    '从实际案例角度分析',
+    '从理论框架角度阐述',
+    '从操作步骤角度说明',
+    '从常见问题角度解答',
+    '从未来趋势角度展望'
+  ]
+
+  if (total <= angles.length) {
+    return angles[index % angles.length]
+  }
+
+  // 如果批量数量大，生成变体
+  return `从${angles[index % angles.length]}，结合第${Math.floor(index / angles.length) + 1}个维度分析`
 }
