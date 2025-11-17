@@ -47,10 +47,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.log('🔐 [AuthContext] 检查认证状态...')
       setAuthState(prev => ({ ...prev, isLoading: true, error: null }))
 
+      // 添加超时机制，防止长时间阻塞
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000) // 5秒超时
+
       const response = await fetch('/api/auth/login', {
         method: 'GET',
-        credentials: 'include'
+        credentials: 'include',
+        signal: controller.signal
       })
+
+      clearTimeout(timeoutId)
 
       const data: AuthResponse = await response.json()
 
@@ -76,11 +83,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     } catch (error) {
       console.error('❌ [AuthContext] 检查认证状态失败:', error)
+      // 即使认证检查失败，也要停止loading状态，避免页面卡住
       setAuthState({
         user: null,
         session: null,
         isLoading: false,
-        error: error instanceof Error ? error.message : '认证检查失败',
+        error: null, // 清除错误，不影响用户使用
         isAuthenticated: false
       })
     }
@@ -290,7 +298,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * 初始化时检查认证状态
    */
   useEffect(() => {
-    checkAuth()
+    let mounted = true
+    let timeoutId: NodeJS.Timeout
+
+    // 添加超时保护，确保不会永远卡在加载状态
+    const initializeAuth = async () => {
+      await checkAuth()
+
+      // 如果10秒后仍在加载，强制停止
+      if (mounted) {
+        timeoutId = setTimeout(() => {
+          if (authState.isLoading) {
+            console.warn('⚠️ [AuthContext] 认证检查超时，强制停止loading')
+            setAuthState(prev => ({
+              ...prev,
+              isLoading: false,
+              error: null,
+              isAuthenticated: false
+            }))
+          }
+        }, 10000)
+      }
+    }
+
+    initializeAuth()
+
+    return () => {
+      mounted = false
+      if (timeoutId) clearTimeout(timeoutId)
+    }
   }, [])
 
   /**
