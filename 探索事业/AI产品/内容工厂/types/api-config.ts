@@ -597,12 +597,12 @@ export const API_CONFIG_TEMPLATES: Record<ApiProvider, ApiConfigTemplate> = {
         label: 'API地址',
         type: 'url',
         required: false,
-        placeholder: 'https://wx.limingji.com/api/openapi',
+        placeholder: 'https://wx.limyai.com/api/openapi',
         helpText: '微信公众号发布API地址'
       }
     ],
     defaultValues: {
-      apiBase: 'https://wx.limingji.com/api/openapi'
+      apiBase: 'https://wx.limyai.com/api/openapi'
     },
     documentation: {
       apiKeyHelp: '需要联系第三方服务提供商获取API访问权限',

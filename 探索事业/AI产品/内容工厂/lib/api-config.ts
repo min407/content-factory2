@@ -721,22 +721,44 @@ export class ApiConfigManager {
     const startTime = Date.now()
 
     try {
-      const response = await fetch(config.apiBase || 'https://wx.limingji.com/api/openapi', {
+      console.log('🧪 [API配置] 开始测试微信公众号发布连接...')
+
+      if (!config.apiKey?.trim()) {
+        console.error('❌ [API配置] 微信公众号发布: API密钥为空')
+        return {
+          success: false,
+          message: 'API密钥为空',
+          responseTime: Date.now() - startTime,
+          timestamp: new Date()
+        }
+      }
+
+      // 使用正确的API地址
+      const apiBase = config.apiBase || 'https://wx.limyai.com/api/openapi'
+
+      console.log('🔍 [API配置] 微信公众号发布测试配置:', {
+        hasApiKey: !!config.apiKey,
+        apiKeyLength: config.apiKey.length,
+        apiBase: apiBase
+      })
+
+      const response = await fetch(`${apiBase}/wechat-accounts`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'X-API-Key': config.apiKey,
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          api_key: config.apiKey,
-          action: 'get_accounts'
-        })
+        body: JSON.stringify({})
       })
 
       const responseTime = Date.now() - startTime
+      console.log('🌐 [API配置] 微信公众号发布API响应状态:', response.status)
 
       if (response.ok) {
         const data = await response.json()
-        if (data.code === 0) {
+        console.log('📊 [API配置] 微信公众号发布API响应数据:', data)
+
+        if (data.success === true || data.code === 'success') {
           return {
             success: true,
             message: '连接成功',
@@ -747,12 +769,18 @@ export class ApiConfigManager {
         } else {
           return {
             success: false,
-            message: `API错误: ${data.message || '未知错误'}`,
+            message: `API错误: ${data.error || data.message || '未知错误'}`,
             responseTime,
             timestamp: new Date()
           }
         }
       } else {
+        const errorText = await response.text()
+        console.error('❌ [API配置] 微信公众号发布API错误:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText: errorText
+        })
         return {
           success: false,
           message: `HTTP错误 (${response.status}): ${response.statusText}`,
@@ -762,6 +790,7 @@ export class ApiConfigManager {
       }
     } catch (error) {
       const responseTime = Date.now() - startTime
+      console.error('❌ [API配置] 微信公众号发布连接测试异常:', error)
       return {
         success: false,
         message: error instanceof Error ? error.message : '网络连接失败',
