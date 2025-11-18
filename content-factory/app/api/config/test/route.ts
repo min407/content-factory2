@@ -127,7 +127,7 @@ async function testOpenRouterAPI(config: any): Promise<ApiTestResult> {
         'X-Title': 'Content Factory'
       },
       body: JSON.stringify({
-        model: config.model || 'meta-llama/llama-3.2-3b-instruct:free',
+        model: config.model || 'openai/gpt-4o',
         messages: [
           {
             role: 'user',
@@ -185,7 +185,29 @@ async function testSiliconFlowAPI(config: any): Promise<ApiTestResult> {
   const startTime = Date.now()
 
   try {
-    const response = await fetch(`${config.apiBase}/chat/completions`, {
+    console.log('🔗 [SiliconFlow测试] 开始测试:', {
+      apiBase: config.apiBase,
+      hasApiKey: !!config.apiKey,
+      model: config.model
+    })
+
+    // 智能构建API URL
+    let apiUrl = config.apiBase
+
+    // 如果apiBase已经包含了完整路径，直接使用
+    if (apiUrl.includes('/chat/completions') || apiUrl.includes('/images/generations')) {
+      // 如果是图片生成API，改为聊天API进行测试
+      if (apiUrl.includes('/images/generations')) {
+        apiUrl = apiUrl.replace('/images/generations', '/chat/completions')
+      }
+    } else {
+      // 否则添加chat/completions路径
+      apiUrl = `${config.apiBase}/chat/completions`
+    }
+
+    console.log('🔗 [SiliconFlow测试] 请求URL:', apiUrl)
+
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${config.apiKey}`,
@@ -206,12 +228,29 @@ async function testSiliconFlowAPI(config: any): Promise<ApiTestResult> {
 
     const responseTime = Date.now() - startTime
 
+    console.log('🔗 [SiliconFlow测试] 响应状态:', {
+      status: response.status,
+      statusText: response.statusText,
+      responseTime
+    })
+
     if (!response.ok) {
       const errorText = await response.text()
+      console.error('❌ [SiliconFlow测试] API响应错误:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorText: errorText.substring(0, 200)
+      })
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
 
     const data = await response.json()
+
+    console.log('🔗 [SiliconFlow测试] 响应数据:', {
+      hasChoices: !!(data.choices && data.choices.length > 0),
+      model: data.model,
+      usage: data.usage
+    })
 
     if (data.choices && data.choices.length > 0) {
       return {
@@ -221,18 +260,42 @@ async function testSiliconFlowAPI(config: any): Promise<ApiTestResult> {
         timestamp: new Date(),
         details: {
           model: data.model,
-          usage: data.usage
+          usage: data.usage,
+          testUrl: apiUrl
         }
       }
     } else {
       throw new Error('API响应格式异常')
     }
   } catch (error) {
+    const responseTime = Date.now() - startTime
+    console.error('❌ [SiliconFlow测试] 连接失败:', {
+      error: error instanceof Error ? error.message : error,
+      responseTime
+    })
+
+    let errorMessage = error instanceof Error ? error.message : 'SiliconFlow连接失败'
+
+    // 针对不同类型的错误提供更友好的错误信息
+    if (error instanceof Error) {
+      if (error.message.includes('404')) {
+        errorMessage = 'API端点不存在，请检查API地址配置是否正确'
+      } else if (error.message.includes('401')) {
+        errorMessage = 'API密钥无效或已过期'
+      } else if (error.message.includes('fetch')) {
+        errorMessage = '网络连接失败，请检查网络或API服务状态'
+      }
+    }
+
     return {
       success: false,
-      message: error instanceof Error ? error.message : 'SiliconFlow连接失败',
-      responseTime: Date.now() - startTime,
-      timestamp: new Date()
+      message: errorMessage,
+      responseTime,
+      timestamp: new Date(),
+      details: {
+        originalError: error instanceof Error ? error.message : 'Unknown error',
+        apiBase: config.apiBase
+      }
     }
   }
 }
