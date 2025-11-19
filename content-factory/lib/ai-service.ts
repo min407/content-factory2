@@ -28,7 +28,7 @@ function getOpenAIConfig() {
   const model = ApiConfigManager.getModel(ApiProvider.OPENROUTER) || 'anthropic/claude-3.5-sonnet'
 
   // 如果没有用户配置，则回退到环境变量或生产环境默认值
-  const envApiKey = process.env.OPENAI_API_KEY || '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'
+  const envApiKey = process.env.OPENAI_API_KEY || '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'
   const envApiBase = process.env.OPENAI_API_BASE || 'https://openrouter.ai/api/v1'
   const envModel = process.env.OPENAI_MODEL || 'openai/gpt-4o'
 
