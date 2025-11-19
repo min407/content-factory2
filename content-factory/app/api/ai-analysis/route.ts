@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       console.log('📡 [AI分析API] 开始搜索微信文章...')
 
       const baseUrl = process.env.VERCEL === '1'
-        ? `https://${process.env.VERCEL_URL || 'content-factory-v3-qeirdieab-liuzhimins-projects.vercel.app'}`
+        ? `https://${process.env.VERCEL_URL}`
         : 'http://localhost:3000'
 
       console.log('📡 [AI分析API] 请求基础URL:', baseUrl)

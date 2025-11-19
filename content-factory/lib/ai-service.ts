@@ -25,17 +25,25 @@ function getOpenAIConfig() {
   // 优先使用用户配置的API密钥
   const apiKey = ApiConfigManager.getApiKey(ApiProvider.OPENROUTER)
   const apiBase = ApiConfigManager.getApiBase(ApiProvider.OPENROUTER) || 'https://openrouter.ai/api/v1'
-  const model = ApiConfigManager.getModel(ApiProvider.OPENROUTER) || 'anthropic/claude-3.5-sonnet'
+  const model = ApiConfigManager.getModel(ApiProvider.OPENROUTER) || 'openai/gpt-4o'
 
-  // 如果没有用户配置，则回退到环境变量或生产环境默认值
-  const envApiKey = process.env.OPENAI_API_KEY || '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'
+  // 如果没有用户配置，则回退到环境变量
+  const envApiKey = process.env.OPENAI_API_KEY
   const envApiBase = process.env.OPENAI_API_BASE || 'https://openrouter.ai/api/v1'
   const envModel = process.env.OPENAI_MODEL || 'openai/gpt-4o'
+
+  if (!apiKey && !envApiKey) {
+    console.warn('警告: OpenAI API 密钥未配置')
+  }
+
+  // 确保使用正确的模型
+  const finalModel = model || envModel
+  console.log('使用模型:', finalModel)
 
   return {
     apiKey: apiKey || envApiKey,
     apiBase: apiBase,
-    model: model || envModel
+    model: finalModel
   }
 }
 
@@ -1012,8 +1020,12 @@ async function generateSingleImage(prompt: string): Promise<string> {
   const apiBase = ApiConfigManager.getApiBase(ApiProvider.SILICONFLOW) || 'https://api.siliconflow.cn/v1'
   const model = ApiConfigManager.getModel(ApiProvider.SILICONFLOW) || 'Kwai-Kolors/Kolors'
 
+  // 回退到环境变量
+  const envApiKey = process.env.SILICONFLOW_API_KEY
+  const finalApiKey = apiKey || envApiKey
+
   // 如果没有API key，直接使用fallback图片
-  if (!apiKey) {
+  if (!finalApiKey) {
     console.log('SiliconFlow API key not configured, using fallback image')
     return getFallbackImage(prompt)
   }
@@ -1022,7 +1034,7 @@ async function generateSingleImage(prompt: string): Promise<string> {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + apiKey,
+      'Authorization': 'Bearer ' + finalApiKey,
     },
     body: JSON.stringify({
       model,

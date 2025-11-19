@@ -190,11 +190,11 @@ export class ApiConfigManager {
   private static getEnvKey(provider: ApiProvider): string {
     const envKeys = {
       [ApiProvider.OPENROUTER]: 'OPENAI_API_KEY',
-      [ApiProvider.SILICONFLOW]: 'NEXT_PUBLIC_SILICONFLOW_API_KEY',
-      [ApiProvider.WECHAT_SEARCH]: 'NEXT_PUBLIC_WECHAT_SEARCH_API_KEY',
+      [ApiProvider.SILICONFLOW]: 'SILICONFLOW_API_KEY',
+      [ApiProvider.WECHAT_SEARCH]: 'NEXT_PUBLIC_XIAOHONGSHU_SEARCH_API_KEY',
       [ApiProvider.XIAOHONGSHU_SEARCH]: 'NEXT_PUBLIC_XIAOHONGSHU_SEARCH_API_KEY',
       [ApiProvider.XIAOHONGSHU_DETAIL]: 'NEXT_PUBLIC_XIAOHONGSHU_DETAIL_API_KEY',
-      [ApiProvider.WECHAT_PUBLISH]: 'NEXT_PUBLIC_WECHAT_PUBLISH_API_KEY'
+      [ApiProvider.WECHAT_PUBLISH]: 'WECHAT_API_KEY'
     }
     return envKeys[provider] || ''
   }
@@ -301,48 +301,59 @@ export class ApiConfigManager {
       const migrations = [
         {
           provider: ApiProvider.OPENROUTER,
-          apiKey: process.env.NEXT_PUBLIC_OPENROUTER_API_KEY,
-          apiBase: process.env.NEXT_PUBLIC_OPENROUTER_API_BASE || 'https://openrouter.ai/api/v1',
-          model: process.env.NEXT_PUBLIC_OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet'
+          apiKeyEnv: 'OPENAI_API_KEY',
+          apiBaseEnv: 'OPENAI_API_BASE',
+          modelEnv: 'OPENAI_MODEL',
+          defaultBase: 'https://openrouter.ai/api/v1',
+          defaultModel: 'openai/gpt-4o'
         },
         {
           provider: ApiProvider.SILICONFLOW,
-          apiKey: process.env.NEXT_PUBLIC_SILICONFLOW_API_KEY,
-          apiBase: process.env.NEXT_PUBLIC_SILICONFLOW_API_BASE || 'https://api.siliconflow.cn/v1',
-          model: process.env.NEXT_PUBLIC_SILICONFLOW_MODEL || 'Kwai-Kolors/Kolors'
+          apiKeyEnv: 'SILICONFLOW_API_KEY',
+          apiBaseEnv: 'SILICONFLOW_API_BASE',
+          modelEnv: 'SILICONFLOW_MODEL',
+          defaultBase: 'https://api.siliconflow.cn/v1',
+          defaultModel: 'Kwai-Kolors/Kolors'
         },
         {
           provider: ApiProvider.WECHAT_SEARCH,
-          apiKey: process.env.NEXT_PUBLIC_XIAOHONGSHU_SEARCH_API_KEY,
-          apiBase: 'https://www.dajiala.com/fbmain/monitor/v3/kw_search'
+          apiKeyEnv: 'NEXT_PUBLIC_XIAOHONGSHU_SEARCH_API_KEY',
+          apiBaseEnv: null,
+          defaultBase: 'https://www.dajiala.com/fbmain/monitor/v3/kw_search'
         },
         {
           provider: ApiProvider.XIAOHONGSHU_SEARCH,
-          apiKey: process.env.NEXT_PUBLIC_XIAOHONGSHU_SEARCH_API_KEY,
-          apiBase: 'https://www.dajiala.com/fbmain/monitor/v3/xhs'
+          apiKeyEnv: 'NEXT_PUBLIC_XIAOHONGSHU_SEARCH_API_KEY',
+          apiBaseEnv: null,
+          defaultBase: 'https://www.dajiala.com/fbmain/monitor/v3/xhs'
         },
         {
           provider: ApiProvider.XIAOHONGSHU_DETAIL,
-          apiKey: process.env.NEXT_PUBLIC_XIAOHONGSHU_DETAIL_API_KEY,
-          apiBase: 'https://api.meowload.net/openapi/extract/post'
+          apiKeyEnv: 'NEXT_PUBLIC_XIAOHONGSHU_DETAIL_API_KEY',
+          apiBaseEnv: null,
+          defaultBase: 'https://api.meowload.net/openapi/extract/post'
         }
       ]
 
       let migratedCount = 0
 
       migrations.forEach(migration => {
-        if (migration.apiKey && !this.getConfig(migration.provider)) {
+        const apiKey = process.env[migration.apiKeyEnv as keyof typeof process.env]
+        const apiBase = migration.apiBaseEnv ? process.env[migration.apiBaseEnv as keyof typeof process.env] : null
+        const model = migration.modelEnv ? process.env[migration.modelEnv as keyof typeof process.env] : null
+
+        if (apiKey && !this.getConfig(migration.provider)) {
           const template = API_CONFIG_TEMPLATES[migration.provider]
           const config: ApiConfig = {
             id: Date.now().toString() + Math.random().toString(36).substr(2),
             provider: migration.provider,
             name: template.name,
             description: template.description,
-            apiKey: migration.apiKey,
-            apiBase: migration.apiBase,
-            model: migration.model,
+            apiKey: apiKey,
+            apiBase: apiBase || migration.defaultBase || '',
+            model: model || migration.defaultModel || null,
             isActive: true,
-            isConfigured: !!migration.apiKey,
+            isConfigured: !!apiKey,
             createdAt: new Date(),
             updatedAt: new Date()
           }
