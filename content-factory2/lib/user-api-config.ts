@@ -387,11 +387,11 @@ export class UserApiConfigManager {
   private static getEnvKey(provider: ApiProvider): string {
     const envKeys = {
       [ApiProvider.OPENROUTER]: 'OPENAI_API_KEY',
-      [ApiProvider.SILICONFLOW]: 'NEXT_PUBLIC_SILICONFLOW_API_KEY',
-      [ApiProvider.WECHAT_SEARCH]: 'NEXT_PUBLIC_WECHAT_SEARCH_API_KEY',
+      [ApiProvider.SILICONFLOW]: 'SILICONFLOW_API_KEY',
+      [ApiProvider.WECHAT_SEARCH]: 'NEXT_PUBLIC_XIAOHONGSHU_SEARCH_API_KEY',
       [ApiProvider.XIAOHONGSHU_SEARCH]: 'NEXT_PUBLIC_XIAOHONGSHU_SEARCH_API_KEY',
       [ApiProvider.XIAOHONGSHU_DETAIL]: 'NEXT_PUBLIC_XIAOHONGSHU_DETAIL_API_KEY',
-      [ApiProvider.WECHAT_PUBLISH]: 'NEXT_PUBLIC_WECHAT_PUBLISH_API_KEY'
+      [ApiProvider.WECHAT_PUBLISH]: 'WECHAT_API_KEY'
     }
     return envKeys[provider] || ''
   }
