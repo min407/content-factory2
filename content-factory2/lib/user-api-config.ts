@@ -20,7 +20,9 @@ import {
  * 替代原有的基于localStorage的配置管理
  */
 export class UserApiConfigManager {
-  private static readonly API_BASE = '/api/user/configs'
+  private static readonly API_BASE = process.env.NODE_ENV === 'production'
+    ? 'https://content-factory-two.vercel.app/api/user/configs'
+    : 'http://localhost:3000/api/user/configs'
 
   /**
    * 获取当前用户的所有API配置
@@ -29,7 +31,6 @@ export class UserApiConfigManager {
     try {
       const response = await fetch(this.API_BASE, {
         method: 'GET',
-        credentials: 'include',
         headers: {
           'Content-Type': 'application/json'
         }
@@ -120,7 +121,6 @@ export class UserApiConfigManager {
 
       const response = await fetch(this.API_BASE, {
         method: 'POST',
-        credentials: 'include',
         headers: {
           'Content-Type': 'application/json'
         },
@@ -157,7 +157,6 @@ export class UserApiConfigManager {
 
       const response = await fetch(`${this.API_BASE}/${configId}`, {
         method: 'PUT',
-        credentials: 'include',
         headers: {
           'Content-Type': 'application/json'
         },
@@ -200,7 +199,6 @@ export class UserApiConfigManager {
 
       const response = await fetch(`${this.API_BASE}/${configId}`, {
         method: 'DELETE',
-        credentials: 'include',
         headers: {
           'Content-Type': 'application/json'
         }
@@ -539,7 +537,7 @@ export class UserApiConfigManager {
             hasModel: !!updateData.model
           })
 
-          const response = await fetch(`/api/user/configs/${config.id}`, {
+          const response = await fetch(`${this.API_BASE}/${config.id}`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json'
@@ -635,7 +633,9 @@ export class UserApiConfigManager {
    */
   static async checkUserAuth(): Promise<boolean> {
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(process.env.NODE_ENV === 'production'
+        ? 'https://content-factory-two.vercel.app/api/auth/login'
+        : 'http://localhost:3000/api/auth/login', {
         method: 'GET',
         credentials: 'include'
       })

@@ -5,7 +5,7 @@ import { getDb } from '@/lib/db'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { keyword, platform, timestamp, resultCount, articlesData, apiResponse } = body
+    const { keyword, platform, timestamp, resultCount, timeRange, articlesData, apiResponse } = body
 
     // 验证必填字段
     if (!keyword || !platform || !timestamp) {
@@ -32,8 +32,8 @@ export async function POST(request: NextRequest) {
     // 插入历史记录
     const stmt = db.prepare(`
       INSERT INTO search_history
-        (keyword, platform, timestamp, result_count, articles_data, api_response)
-      VALUES (?, ?, ?, ?, ?, ?)
+        (keyword, platform, timestamp, result_count, time_range, articles_data, api_response)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `)
 
     const result = stmt.run(
@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
       platform,
       timestamp,
       resultCount || 0,
+      timeRange || 7,
       articlesJson,
       apiResponseJson
     )
@@ -76,6 +77,7 @@ export async function GET(request: NextRequest) {
         platform,
         timestamp,
         result_count as resultCount,
+        time_range as timeRange,
         articles_data as articlesData,
         api_response as apiResponse,
         created_at as createdAt

@@ -15,23 +15,46 @@ import {
 } from '@/types/ai-analysis'
 import { ContentCache, IMAGE_STYLES, IMAGE_RATIOS, COVER_TEMPLATES, ContentUtils } from './content-cache'
 
-import { ApiConfigManager } from './api-config'
+import { UserApiConfigManager } from './user-api-config'
 import { ApiProvider } from '@/types/api-config'
 
 /**
  * 获取OpenAI配置
  */
-function getOpenAIConfig() {
-  // 优先使用用户配置的API密钥
-  const apiKey = ApiConfigManager.getApiKey(ApiProvider.OPENROUTER)
-  const apiBase = ApiConfigManager.getApiBase(ApiProvider.OPENROUTER) || 'https://openrouter.ai/api/v1'
-  const model = ApiConfigManager.getModel(ApiProvider.OPENROUTER) || 'anthropic/claude-3.5-sonnet'
+async function getOpenAIConfig(userConfig?: { apiKey: string; apiBase: string; model: string }) {
+  try {
+    // 如果提供了用户配置，则使用用户配置
+    if (userConfig && userConfig.apiKey && userConfig.apiBase) {
+      console.log(`🔑 [AI服务] 使用用户配置API密钥: ${userConfig.apiKey.substring(0, 8)}...`)
+      console.log(`🌐 [AI服务] 使用用户配置API地址: ${userConfig.apiBase}`)
+      return {
+        apiKey: userConfig.apiKey,
+        apiBase: userConfig.apiBase,
+        model: userConfig.model || 'openai/gpt-4o'
+      }
+    }
 
-  // 如果没有用户配置，则回退到环境变量
-  return {
-    apiKey: apiKey || process.env.OPENAI_API_KEY || '',
-    apiBase: apiBase,
-    model: model
+    // 回退到环境变量
+    const envApiKey = process.env.OPENAI_API_KEY || ''
+    const envApiBase = process.env.OPENAI_API_BASE || 'https://openrouter.ai/api/v1'
+    const envModel = process.env.OPENAI_MODEL || 'openai/gpt-4o'
+
+    console.log(`🔑 [AI服务] 回退到环境变量API密钥: ${envApiKey.substring(0, 8)}...`)
+    console.log(`🌐 [AI服务] 回退到环境变量API地址: ${envApiBase}`)
+
+    return {
+      apiKey: envApiKey,
+      apiBase: envApiBase,
+      model: envModel
+    }
+  } catch (error) {
+    console.error('获取AI配置失败:', error)
+    // 回退到环境变量
+    return {
+      apiKey: process.env.OPENAI_API_KEY || '',
+      apiBase: process.env.OPENAI_API_BASE || 'https://openrouter.ai/api/v1',
+      model: process.env.OPENAI_MODEL || 'openai/gpt-4o'
+    }
   }
 }
 
@@ -40,9 +63,10 @@ function getOpenAIConfig() {
  */
 async function callOpenAI(
   messages: Array<{ role: string; content: string }>,
-  temperature = 0.7
+  temperature = 0.7,
+  userConfig?: { apiKey: string; apiBase: string; model: string }
 ): Promise<string> {
-  const config = getOpenAIConfig()
+  const config = await getOpenAIConfig(userConfig)
 
   if (!config.apiKey) {
     throw new Error('API密钥未配置，请在设置中配置OpenRouter API密钥')
@@ -82,7 +106,8 @@ export async function deepAnalyzeArticles(
     likes: number
     reads: number
     url: string
-  }>
+  }>,
+  userConfig?: { apiKey: string; apiBase: string; model: string }
 ): Promise<ArticleSummary[]> {
   if (!articles || articles.length === 0) {
     return []
@@ -138,7 +163,7 @@ ${articlesJson}
   const response = await callOpenAI([
     { role: 'system', content: '你是一个专业的内容深度分析专家，擅长从文章中提取结构化信息，只输出JSON格式数据。' },
     { role: 'user', content: prompt },
-  ], 0.3)
+  ], 0.3, userConfig)
 
   // 解析JSON响应
   try {
@@ -176,7 +201,8 @@ export async function generateSmartTopicInsights(
     avgReads: number
     avgLikes: number
     avgEngagement: string
-  }
+  },
+  userConfig?: { apiKey: string; apiBase: string; model: string }
 ): Promise<TopicInsight[]> {
   if (!summaries || summaries.length === 0) {
     return []
@@ -278,7 +304,7 @@ JSON格式输出：
   const response = await callOpenAI([
     { role: 'system', content: '你是顶级的内容选题策划专家，擅长从数据分析中提炼出具有商业价值的选题洞察，只输出JSON格式数据。' },
     { role: 'user', content: prompt },
-  ], 0.4)
+  ], 0.4, userConfig)
 
   try {
     // 清理响应中的markdown标记
@@ -302,8 +328,11 @@ JSON格式输出：
 
     // 验证关键字段
     insights.forEach((insight: any, index: number) => {
-      if (!insight.keywords?.scene || !insight.keywords?.audience || !insight.keywords?.need) {
-        console.warn('洞察' + (index + 1) + '缺少必需的关键词字段');
+      if (!insight.title || !insight.description) {
+        console.warn('洞察' + (index + 1) + '缺少必需的标题或描述字段');
+      }
+      if (!insight.confidence || insight.confidence < 60 || insight.confidence > 100) {
+        console.warn('洞察' + (index + 1) + '的置信度数值异常，期望60-100之间');
       }
     })
 

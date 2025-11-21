@@ -37,11 +37,19 @@ function initTables() {
       platform TEXT NOT NULL CHECK(platform IN ('wechat', 'xiaohongshu')),
       timestamp INTEGER NOT NULL,
       result_count INTEGER DEFAULT 0,
+      time_range INTEGER DEFAULT 7,
       articles_data TEXT,
       api_response TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `)
+
+  // 添加time_range字段（如果表已存在但没有这个字段）
+  try {
+    db.exec(`ALTER TABLE search_history ADD COLUMN time_range INTEGER DEFAULT 7`)
+  } catch (error) {
+    // 字段可能已存在，忽略错误
+  }
 
   // 创建索引以提高查询性能
   db.exec(`
@@ -57,6 +65,11 @@ function initTables() {
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_search_history_keyword
     ON search_history(keyword)
+  `)
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_search_history_time_range
+    ON search_history(time_range)
   `)
 
   console.log('✅ 数据库表初始化完成')

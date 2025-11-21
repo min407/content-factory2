@@ -10,12 +10,22 @@ import { WeChatArticle } from '@/types/wechat-api'
 import { ArticleSummary, TopicInsight } from '@/types/ai-analysis'
 import * as XLSX from 'xlsx'
 
+// 时间范围选项
+const timeRangeOptions = [
+  { label: '不限', value: 365 },
+  { label: '近7天', value: 7 },
+  { label: '近1个月', value: 30 },
+  { label: '近3个月', value: 90 },
+  { label: '近6个月', value: 180 },
+]
+
 // 历史记录类型定义
 interface SearchHistory {
   id: number
   keyword: string
   timestamp: number
   resultCount: number
+  timeRange: number
   articlesData?: any
   apiResponse?: any
 }
@@ -185,6 +195,7 @@ function AnalysisPageContent() {
   const [searchHistory, setSearchHistory] = useState<SearchHistory[]>([])
   const [showHistoryModal, setShowHistoryModal] = useState(false)
   const [articleCount, setArticleCount] = useState<number>(5)
+  const [timeRange, setTimeRange] = useState<number>(365) // 默认不限
   const [customArticleCount, setCustomArticleCount] = useState('')
   const [showCustomInput, setShowCustomInput] = useState(false)
   const [aiInsights, setAiInsights] = useState<TopicInsight[]>([])
@@ -266,6 +277,7 @@ function AnalysisPageContent() {
   const saveSearchHistory = async (historyData: {
     keyword: string
     resultCount: number
+    timeRange: number
     articlesData?: any
     apiResponse?: any
   }) => {
@@ -315,7 +327,7 @@ function AnalysisPageContent() {
         kw: keyword,
         sort_type: 1,
         mode: 1,
-        period: 7,
+        period: timeRange,
         page: 1,
         type: 1,
       })
@@ -377,6 +389,7 @@ function AnalysisPageContent() {
         await saveSearchHistory({
           keyword,
           resultCount: articlesData.length,
+          timeRange,
           articlesData: articlesData,
           apiResponse: response,
         })
@@ -432,6 +445,7 @@ function AnalysisPageContent() {
         reads: article.read || 0,
         engagement: article.read > 0 ? ((article.praise / article.read) * 100).toFixed(0) + '%' : '0%',
         url: article.url || article.short_link || '',
+        publishTime: article.publish_time_str || '',
       }))
   }
 
@@ -455,6 +469,7 @@ function AnalysisPageContent() {
         reads: article.read || 0,
         engagement: ((article.praise || 0) / article.read * 100).toFixed(0) + '%',
         url: article.url || article.short_link || '',
+        publishTime: article.publish_time_str || '',
       }))
   }
 
@@ -553,7 +568,7 @@ function AnalysisPageContent() {
     }
 
     // 创建Excel数据
-    const headers = ['序号', '标题', '公众号名称', '作者', '阅读量', '点赞数', '互动率', '发布时间', '链接']
+    const headers = ['序号', '标题', '公众号名称', '作者', '内容摘要', '阅读量', '点赞数', '互动率', '发布时间', '链接']
     const excelData = [
       headers,
       ...allArticles.map((article, index) => [
@@ -561,6 +576,7 @@ function AnalysisPageContent() {
         article.title || '',
         article.wx_name || '',
         '', // 作者字段留空，因为API中没有提供作者名称数据
+        article.content || '',
         article.read || 0,
         article.praise || 0,
         article.read > 0 ? `${((article.praise || 0) / article.read * 100).toFixed(1)}%` : '0%',
@@ -580,6 +596,7 @@ function AnalysisPageContent() {
       { wch: 50 },  // 标题
       { wch: 20 },  // 公众号名称
       { wch: 15 },  // 作者
+      { wch: 80 },  // 内容摘要
       { wch: 12 },  // 阅读量
       { wch: 12 },  // 点赞数
       { wch: 12 },  // 互动率
@@ -682,6 +699,24 @@ function AnalysisPageContent() {
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 onKeyPress={(e) => e.key === 'Enter' && handleAnalysis()}
               />
+            </div>
+            <div className="mt-3 flex items-center space-x-4">
+              <span className="text-sm text-gray-500">采集时间：</span>
+              <div className="flex space-x-2">
+                {timeRangeOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => setTimeRange(option.value)}
+                    className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                      timeRange === option.value
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="mt-2 flex items-center space-x-4 text-sm text-gray-500">
               <span>热门关键词：</span>
@@ -848,6 +883,12 @@ function AnalysisPageContent() {
                             <TrendingUp className="w-4 h-4 mr-1 text-green-500" />
                             {article.engagement}
                           </span>
+                          {article.publishTime && (
+                            <span className="flex items-center">
+                              <Clock className="w-4 h-4 mr-1" />
+                              {article.publishTime}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -896,6 +937,12 @@ function AnalysisPageContent() {
                             <TrendingUp className="w-4 h-4 mr-1" />
                             {article.engagement}
                           </span>
+                          {article.publishTime && (
+                            <span className="flex items-center">
+                              <Clock className="w-4 h-4 mr-1" />
+                              {article.publishTime}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1134,6 +1181,9 @@ function AnalysisPageContent() {
                         作者
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        内容摘要
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         阅读量
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1164,8 +1214,15 @@ function AnalysisPageContent() {
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-sm text-gray-600">
-                            {article.ip_wording || '-'}
+                            {'' || '-'}
                           </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="max-w-xs truncate" title={article.content || ''}>
+                            <span className="text-sm text-gray-600">
+                              {article.content ? article.content.substring(0, 100) + (article.content.length > 100 ? '...' : '') : '-'}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-sm text-gray-900">
@@ -1249,6 +1306,7 @@ function AnalysisPageContent() {
                       className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
                       onClick={() => {
                         setKeyword(item.keyword)
+                        setTimeRange(item.timeRange || 7) // 恢复时间范围
                         setShowHistoryModal(false)
                         if (item.articlesData && item.articlesData.length > 0) {
                           setArticles(item.articlesData)
@@ -1259,7 +1317,7 @@ function AnalysisPageContent() {
                       <div className="flex-1">
                         <h3 className="font-semibold text-gray-900">{item.keyword}</h3>
                         <p className="text-sm text-gray-500">
-                          {item.resultCount} 篇文章 · {new Date(item.timestamp).toLocaleString()}
+                          {item.resultCount} 篇文章 · {timeRangeOptions.find(opt => opt.value === item.timeRange)?.label || '近7天'} · {new Date(item.timestamp).toLocaleString()}
                         </p>
                       </div>
                     </div>
