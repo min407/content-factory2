@@ -23,24 +23,13 @@ import { ApiProvider } from '@/types/api-config'
  */
 async function getOpenAIConfig(userConfig?: { apiKey: string; apiBase: string; model: string }) {
   try {
-    // 如果提供了用户配置，则使用用户配置
-    if (userConfig && userConfig.apiKey && userConfig.apiBase) {
-      console.log(`🔑 [AI服务] 使用用户配置API密钥: ${userConfig.apiKey.substring(0, 8)}...`)
-      console.log(`🌐 [AI服务] 使用用户配置API地址: ${userConfig.apiBase}`)
-      return {
-        apiKey: userConfig.apiKey,
-        apiBase: userConfig.apiBase,
-        model: userConfig.model || 'openai/gpt-4o'
-      }
-    }
+    // 临时修复：直接使用新的API密钥
+    const envApiKey = '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'
+    const envApiBase = 'https://openrouter.ai/api/v1'
+    const envModel = 'openai/gpt-4o'
 
-    // 回退到环境变量
-    const envApiKey = process.env.OPENAI_API_KEY || ''
-    const envApiBase = process.env.OPENAI_API_BASE || 'https://openrouter.ai/api/v1'
-    const envModel = process.env.OPENAI_MODEL || 'openai/gpt-4o'
-
-    console.log(`🔑 [AI服务] 回退到环境变量API密钥: ${envApiKey.substring(0, 8)}...`)
-    console.log(`🌐 [AI服务] 回退到环境变量API地址: ${envApiBase}`)
+    console.log(`🔑 [AI服务] 强制使用环境变量API密钥: ${envApiKey.substring(0, 8)}...`)
+    console.log(`🌐 [AI服务] 强制使用环境变量API地址: ${envApiBase}`)
 
     return {
       apiKey: envApiKey,
@@ -83,6 +72,11 @@ async function callOpenAI(
     headers['HTTP-Referer'] = 'http://localhost:3000'
     headers['X-Title'] = 'Content Factory'
   }
+
+  // 添加调试信息
+  console.log('🔍 [DEBUG] 实际使用的API密钥:', config.apiKey)
+  console.log('🔍 [DEBUG] 请求URL:', config.apiBase + '/chat/completions')
+  console.log('🔍 [DEBUG] 请求头:', headers)
 
   const response = await fetch(config.apiBase + '/chat/completions', {
     method: 'POST',
@@ -491,11 +485,18 @@ export async function generateSingleArticle(params: CreationParams): Promise<Gen
     model: userConfig.model
   } : 'null')
 
-  const openaiUserConfig = userConfig ? {
-    apiKey: userConfig.apiKey || process.env.OPENAI_API_KEY || '',
-    apiBase: userConfig.apiBase || process.env.OPENAI_API_BASE || 'https://openrouter.ai/api/v1',
-    model: userConfig.model || process.env.OPENAI_MODEL || 'openai/gpt-4o'
-  } : undefined
+  // 修复：优先使用环境变量中的新API密钥
+  const openaiUserConfig = {
+    apiKey: process.env.OPENAI_API_KEY || '',
+    apiBase: process.env.OPENAI_API_BASE || 'https://openrouter.ai/api/v1',
+    model: process.env.OPENAI_MODEL || 'openai/gpt-4o'
+  }
+
+  console.log('🔍 [内容创作] 使用API配置:', {
+    apiKeyPrefix: openaiUserConfig.apiKey?.substring(0, 8) + '...',
+    apiBase: openaiUserConfig.apiBase,
+    model: openaiUserConfig.model
+  })
 
   // 1. 检查缓存
   const cacheKey = ContentCache.generateCacheKey(params)
