@@ -110,6 +110,7 @@ function CreatePageContent() {
   const [imageCount, setImageCount] = useState('3')
   const [imageStyle, setImageStyle] = useState('auto')
   const [imageRatio, setImageRatio] = useState('4:3')
+  const [hasCover, setHasCover] = useState(false) // 是否包含封面图
 
   // 批量创作状态
   const [batchCount, setBatchCount] = useState(1)
@@ -707,6 +708,8 @@ function CreatePageContent() {
         imageCount: parseInt(imageCount),
         imageStyle,
         imageRatio,
+        hasCover, // 添加封面选项
+        coverRatio: '2.35:1', // 封面比例固定为2.35:1
         creationMode,
         originalInspiration: creationMode === 'original' ? originalInspiration : undefined,
         referenceArticles: creationMode === 'reference' ? selectedArticles : [],
@@ -1090,7 +1093,9 @@ function CreatePageContent() {
           imageCount: parseInt(imageCount),
           imageStyle,
           imageRatio,
-          topic: selectedTopic || customTopic
+          topic: selectedTopic || customTopic,
+          hasCover, // 添加封面选项到参数
+          coverRatio: '2.35:1'
         },
         // 更新字数和阅读时间
         wordCount: currentArticle.wordCount || countWords(currentArticle.content),
@@ -1104,7 +1109,7 @@ function CreatePageContent() {
       setError('保存草稿失败')
       setTimeout(() => setError(null), 3000)
     }
-  }, [generatedArticles, currentArticleIndex, contentLength, writingStyle, imageCount, imageStyle, imageRatio, selectedTopic, customTopic])
+  }, [generatedArticles, currentArticleIndex, contentLength, writingStyle, imageCount, imageStyle, imageRatio, selectedTopic, customTopic, hasCover])
 
   // 统计字数的辅助函数
   const countWords = (content: string): number => {
@@ -1807,6 +1812,29 @@ function CreatePageContent() {
                   <option value="5">5张</option>
                 </select>
               </div>
+
+              {/* 封面图选项 */}
+              {parseInt(imageCount) > 0 && (
+                <div>
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hasCover}
+                      onChange={(e) => setHasCover(e.target.checked)}
+                      className="mr-2"
+                    />
+                    <span className="text-sm font-medium text-gray-700 flex items-center">
+                      <ImageIcon className="w-4 h-4 inline mr-1" />
+                      是否包含封面图
+                    </span>
+                  </label>
+                  {hasCover && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      第一张图将作为公众号封面(2.35:1),其余图片为正文配图({imageRatio})
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
