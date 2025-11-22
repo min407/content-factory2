@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getWechatPublishConfig } from '@/lib/wechat-publish'
+import { getWechatPublishConfig, formatPublishParams } from '@/lib/wechat-publish'
 
 export async function POST(request: NextRequest) {
   try {
@@ -46,23 +46,23 @@ export async function POST(request: NextRequest) {
 
         console.log(`获取到草稿信息:`, { id: draftData.id, title: draftData.title })
 
+        // 使用 formatPublishParams 格式化发布参数（会自动处理封面和图片嵌入）
+        const publishParams = formatPublishParams(draftData, wechatAppid, articleType || 'news')
+
+        console.log(`草稿 ${draftId} 格式化后的参数:`, {
+          hasCoverImage: !!publishParams.coverImage,
+          coverImage: publishParams.coverImage,
+          contentLength: publishParams.content.length,
+          contentHasImages: /!\[.*?\]\(.*?\)/.test(publishParams.content)
+        })
+
         const publishResponse = await fetch(`${wechatConfig.apiBase}/wechat-publish`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-API-Key': wechatConfig.apiKey
           },
-          body: JSON.stringify({
-            draftId,
-            wechatAppid,
-            articleType: articleType || 'news',
-            title: draftData.title,
-            content: draftData.content,
-            summary: draftData.summary || draftData.content?.substring(0, 100),
-            coverImage: draftData.coverImage,
-            author: draftData.author,
-            contentFormat: 'markdown'
-          })
+          body: JSON.stringify(publishParams)
         })
 
         const publishData = await publishResponse.json()
