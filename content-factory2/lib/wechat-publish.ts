@@ -218,9 +218,20 @@ export function formatPublishParams(
     params.summary = plainText.substring(0, 100) + (plainText.length > 100 ? '...' : '')
   }
 
-  // 设置封面图（使用第一张图片）
-  if (!params.coverImage && draft.images && draft.images.length > 0) {
-    params.coverImage = draft.images[0].url || draft.images[0]
+  // 设置封面图（优先使用专门的封面图片，如果没有则使用第一张正文图片）
+  if (!params.coverImage) {
+    // 优先使用 draft.cover（专门的封面图片）
+    if (draft.cover) {
+      if (typeof draft.cover === 'object' && draft.cover.url) {
+        params.coverImage = draft.cover.url
+      } else if (typeof draft.cover === 'string') {
+        params.coverImage = draft.cover
+      }
+    }
+    // 如果没有封面图，则使用第一张正文图片作为备用
+    else if (draft.images && draft.images.length > 0) {
+      params.coverImage = draft.images[0].url || draft.images[0]
+    }
   }
 
   // 设置作者（可选）
