@@ -5,5 +5,12 @@
     "username": "小卷儿",
     "token": "session_1763647133607_6sn9b9xkcaq",
     "expiresAt": "2025-12-20T13:58:53.607Z"
+  },
+  {
+    "userId": "user_1763746788947_yxgik8rsu",
+    "email": "test@123.com",
+    "username": "test",
+    "token": "session_1763746788949_by4fxkwfua",
+    "expiresAt": "2025-12-21T17:39:48.949Z"
   }
 ]

@@ -200,10 +200,70 @@ export function formatPublishParams(
   wechatAppid: string,
   articleType: 'news' | 'newspic'
 ): PublishParams {
+  let content = draft.content || ''
+
+  console.log('📝 formatPublishParams 开始处理:', {
+    title: draft.title,
+    contentLength: content.length,
+    hasCover: !!draft.cover,
+    imagesCount: draft.images?.length || 0,
+    coverData: draft.cover,
+    firstImage: draft.images?.[0]
+  })
+
+  // 如果草稿中有图片，但内容中没有嵌入图片，则将图片嵌入到内容中
+  if (draft.images && draft.images.length > 0) {
+    // 检查内容中是否已经包含图片
+    const hasImageInContent = /!\[.*?\]\(.*?\)/.test(content) || /<img[^>]+src=/.test(content)
+    console.log('📝 检查内容中是否已有图片:', hasImageInContent)
+
+    if (!hasImageInContent) {
+      console.log('📝 内容中未检测到图片，自动嵌入图片到Markdown内容中...')
+
+      // 在文章开头或适当位置嵌入图片
+      // 根据文章类型选择嵌入方式
+      if (articleType === 'newspic') {
+        // 小绿书格式：图片优先，放在前面
+        const imageMarkdown = draft.images.map((img: any, index: number) => {
+          const url = typeof img === 'object' ? img.url : img
+          const desc = typeof img === 'object' ? (img.description || `图片${index + 1}`) : `图片${index + 1}`
+          return `![${desc}](${url})`
+        }).join('\n\n')
+
+        content = imageMarkdown + '\n\n' + content
+      } else {
+        // 公众号文章：在内容中均匀分布图片
+        const paragraphs = content.split('\n\n')
+        const imageCount = draft.images.length
+        const paragraphCount = paragraphs.length
+
+        // 计算图片分布间隔
+        const interval = Math.max(1, Math.floor(paragraphCount / (imageCount + 1)))
+
+        // 插入图片到内容中
+        let imageIndex = 0
+        for (let i = interval; i < paragraphs.length && imageIndex < imageCount; i += interval + 1) {
+          const img = draft.images[imageIndex]
+          const url = typeof img === 'object' ? img.url : img
+          const desc = typeof img === 'object' ? (img.description || `配图${imageIndex + 1}`) : `配图${imageIndex + 1}`
+
+          paragraphs.splice(i, 0, `![${desc}](${url})`)
+          imageIndex++
+        }
+
+        content = paragraphs.join('\n\n')
+      }
+
+      console.log('✅ 图片已嵌入到内容中，共嵌入', draft.images.length, '张图片')
+    } else {
+      console.log('✅ 内容中已包含图片，无需嵌入')
+    }
+  }
+
   const params: PublishParams = {
     wechatAppid,
     title: draft.title,
-    content: draft.content,
+    content: content,
     articleType,
     contentFormat: 'markdown'
   }
@@ -231,6 +291,7 @@ export function formatPublishParams(
     // 如果没有封面图，则使用第一张正文图片作为备用
     else if (draft.images && draft.images.length > 0) {
       params.coverImage = draft.images[0].url || draft.images[0]
+      console.log('📝 使用第一张正文图片作为封面:', params.coverImage)
     }
   }
 
@@ -238,6 +299,14 @@ export function formatPublishParams(
   if (draft.author) {
     params.author = draft.author
   }
+
+  console.log('✅ formatPublishParams 返回的参数:', {
+    title: params.title,
+    hasCoverImage: !!params.coverImage,
+    coverImage: params.coverImage,
+    contentLength: params.content.length,
+    contentSample: params.content.substring(0, 200)
+  })
 
   return params
 }

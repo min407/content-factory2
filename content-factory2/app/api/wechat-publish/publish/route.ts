@@ -68,6 +68,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 记录草稿数据的完整结构（移到 draft 初始化之后）
+    console.log('完整草稿数据:', {
+      title: draft.title?.substring(0, 50) + '...',
+      hasContent: !!draft.content,
+      contentLength: draft.content?.length || 0,
+      cover: draft.cover,
+      imagesCount: draft.images?.length || 0,
+      images: draft.images,
+      parameters: draft.parameters
+    })
+
     // 格式化发布参数
     const publishParams = formatPublishParams(draft, wechatAppid, articleType)
 
