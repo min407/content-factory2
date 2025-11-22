@@ -1317,13 +1317,16 @@ async function callImageGenerationAPI(prompt: string): Promise<string> {
 }
 
 /**
- * 生成占位图片
+ * 生成占位图片 - 修复为可用的URL格式
  */
 function generatePlaceholderImage(prompt: string): string {
-  // 创建一个更简单的SVG占位图片，2.35:1比例 (900x383)
-  const svgContent = '<svg width="900" height="383" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#667eea"/><stop offset="100%" style="stop-color:#764ba2"/></linearGradient></defs><rect width="900" height="383" fill="url(#grad)"/><text x="450" y="191" font-family="Arial" font-size="32" fill="white" text-anchor="middle">AI Generated Cover</text></svg>';
+  // 使用一个真实的占位图片服务，而不是SVG data URL
+  // 这样可以确保图片能够被img标签正确加载
+  const colors = ['667eea', '764ba2', 'f093fb', 'f5576c', '4facfe', '00f2fe', '43e97b', '38f9d7']
+  const bgColor = colors[Math.floor(Math.random() * colors.length)]
+  const textColor = 'ffffff'
 
-  // 使用URL编码而不是base64，这样更兼容CSS background-image
-  const encodedSvg = encodeURIComponent(svgContent)
-  return 'data:image/svg+xml,' + encodedSvg;
+  // 使用picsum.photos - 一个稳定的图片占位符服务
+  // 900x383 是 2.35:1 的比例
+  return `https://picsum.photos/seed/${encodeURIComponent(prompt.substring(0, 50))}/900/383.jpg?blur=2`
 }

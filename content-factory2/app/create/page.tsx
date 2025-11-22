@@ -2203,23 +2203,54 @@ function CreatePageContent() {
                       {generatedArticles[currentArticleIndex].cover && (
                         <div className="mb-6">
                           <div className="w-full rounded-lg shadow-lg overflow-hidden" style={{ aspectRatio: '2.35/1' }}>
-                            <img
-                              src={typeof generatedArticles[currentArticleIndex].cover === 'string'
-                                ? generatedArticles[currentArticleIndex].cover
-                                : generatedArticles[currentArticleIndex].cover?.url || ''}
-                              alt={typeof generatedArticles[currentArticleIndex].cover === 'object'
-                                ? generatedArticles[currentArticleIndex].cover?.description || '封面图片'
-                                : '封面图片'}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                console.error('封面图片加载失败:', {
-                                  cover: generatedArticles[currentArticleIndex].cover,
-                                  type: typeof generatedArticles[currentArticleIndex].cover
-                                })
-                                const target = e.currentTarget
-                                target.style.display = 'none'
-                              }}
-                            />
+                            {(() => {
+                              const cover = generatedArticles[currentArticleIndex].cover
+                              const coverUrl = typeof cover === 'string' ? cover : cover?.url || ''
+                              const coverDesc = typeof cover === 'object' ? cover?.description : (typeof cover === 'string' ? 'AI生成封面' : '封面图片')
+
+                              if (!coverUrl || coverUrl.includes('AI generate cover') || coverUrl.includes('placeholder')) {
+                                // 如果没有有效的封面URL，显示占位图
+                                console.log('⚠️ 封面URL无效或缺失:', coverUrl, cover)
+                                return (
+                                  <div className="w-full h-full bg-gradient-to-br from-pink-100 to-purple-100 flex items-center justify-center">
+                                    <div className="text-center">
+                                      <ImageIcon className="w-12 h-12 text-pink-400 mx-auto mb-3" />
+                                      <p className="text-gray-600 font-medium">封面图片生成失败</p>
+                                      <p className="text-sm text-gray-500 mt-1">请检查图片生成服务配置</p>
+                                    </div>
+                                  </div>
+                                )
+                              }
+
+                              return (
+                                <img
+                                  src={coverUrl}
+                                  alt={coverDesc}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    console.error('❌ 封面图片加载失败:', {
+                                      cover,
+                                      coverUrl,
+                                      type: typeof cover
+                                    })
+                                    const target = e.currentTarget
+                                    target.style.display = 'none'
+                                    // 显示错误占位图
+                                    target.parentElement!.innerHTML = `
+                                      <div class="w-full h-full bg-gradient-to-br from-pink-100 to-purple-100 flex items-center justify-center">
+                                        <div class="text-center">
+                                          <div class="w-12 h-12 bg-pink-400 rounded-full mx-auto mb-3 flex items-center justify-center">
+                                            <span class="text-white text-xl">!</span>
+                                          </div>
+                                          <p class="text-gray-600 font-medium">封面图片无法加载</p>
+                                          <p class="text-sm text-gray-500 mt-1">URL可能无效或已过期</p>
+                                        </div>
+                                      </div>
+                                    `
+                                  }}
+                                />
+                              )
+                            })()}
                           </div>
                           {typeof generatedArticles[currentArticleIndex].cover === 'object' &&
                             generatedArticles[currentArticleIndex].cover?.description && (

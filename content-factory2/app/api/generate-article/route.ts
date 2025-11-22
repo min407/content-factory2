@@ -15,7 +15,10 @@ export async function POST(request: NextRequest) {
       originalInspiration,
       referenceArticles,
       isBatch,
-      count
+      count,
+      hasCover,
+      coverRatio,
+      imagePromptContext
     } = await request.json()
 
     if (!topic) {
@@ -35,7 +38,10 @@ export async function POST(request: NextRequest) {
       uniqueAngle,
       creationMode,
       originalInspiration,
-      referenceArticles
+      referenceArticles,
+      hasCover,
+      coverRatio,
+      imagePromptContext
     }
 
     let result
