@@ -746,6 +746,12 @@ function CreatePageContent() {
 
       if (result.success) {
         const articles = Array.isArray(result.data) ? result.data : [result.data]
+
+        // 调试：检查返回的文章数据
+        console.log('✅ [生成结果] 文章数据:', articles)
+        console.log('✅ [生成结果] 封面数据:', articles[0]?.cover)
+        console.log('✅ [生成结果] 图片数据:', articles[0]?.images)
+
         setGeneratedArticles(articles)
         setSuccess(result.message || '文章生成成功')
 
@@ -2196,21 +2202,31 @@ function CreatePageContent() {
                       {/* 封面图直接显示在文章顶部 */}
                       {generatedArticles[currentArticleIndex].cover && (
                         <div className="mb-6">
-                          <div
-                            className="w-full rounded-lg shadow-lg overflow-hidden"
-                            style={{
-                              aspectRatio: '2.35/1',
-                              backgroundImage: `url(${generatedArticles[currentArticleIndex].cover?.url || ''})`,
-                              backgroundSize: 'cover',
-                              backgroundPosition: 'center',
-                              backgroundRepeat: 'no-repeat'
-                            }}
-                          />
-                          {generatedArticles[currentArticleIndex].cover?.description && (
-                            <p className="text-xs text-gray-500 mt-2 text-center italic">
-                              封面：{generatedArticles[currentArticleIndex].cover.description}
-                            </p>
-                          )}
+                          <div className="w-full rounded-lg shadow-lg overflow-hidden" style={{ aspectRatio: '2.35/1' }}>
+                            <img
+                              src={typeof generatedArticles[currentArticleIndex].cover === 'string'
+                                ? generatedArticles[currentArticleIndex].cover
+                                : generatedArticles[currentArticleIndex].cover?.url || ''}
+                              alt={typeof generatedArticles[currentArticleIndex].cover === 'object'
+                                ? generatedArticles[currentArticleIndex].cover?.description || '封面图片'
+                                : '封面图片'}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                console.error('封面图片加载失败:', {
+                                  cover: generatedArticles[currentArticleIndex].cover,
+                                  type: typeof generatedArticles[currentArticleIndex].cover
+                                })
+                                const target = e.currentTarget
+                                target.style.display = 'none'
+                              }}
+                            />
+                          </div>
+                          {typeof generatedArticles[currentArticleIndex].cover === 'object' &&
+                            generatedArticles[currentArticleIndex].cover?.description && (
+                              <p className="text-xs text-gray-500 mt-2 text-center italic">
+                                封面：{generatedArticles[currentArticleIndex].cover.description}
+                              </p>
+                            )}
                         </div>
                       )}
 
@@ -2375,5 +2391,15 @@ function CreatePageContent() {
         </div>
       )}
 
+    </div>
+  )
+}
+
+// 包装需要登录的页面
+export default withAuth(function CreatePage() {
+  return (
+    <DashboardLayout>
+      <CreatePageContent />
+    </DashboardLayout>
   )
 })
