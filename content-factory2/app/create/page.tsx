@@ -172,6 +172,7 @@ function CreatePageContent() {
               title: draft.title,
               content: draft.content,
               images: draft.images || [],
+              cover: (draft as any).cover || null, // 加载封面图片
               wordCount: (draft as any).wordCount || 0,
               readingTime: (draft as any).readingTime || 0,
               topicId: draft.topicId,
@@ -194,6 +195,7 @@ function CreatePageContent() {
               if (params.imageCount) setImageCount(params.imageCount)
               if (params.imageStyle) setImageStyle(params.imageStyle)
               if (params.imageRatio) setImageRatio(params.imageRatio)
+              if (params.hasCover !== undefined) setHasCover(params.hasCover) // 恢复封面选项
             }
 
             setSuccess('已加载草稿内容')
@@ -695,6 +697,13 @@ function CreatePageContent() {
 
     console.log('✅ [创作验证] 验证通过，开始创作')
 
+    // 为图片生成准备内容关键词（用于生成相关图片）
+    const imagePromptContext = creationMode === 'original'
+      ? originalInspiration
+      : selectedArticles.map(a => a.title + ' ' + (a.summary || '')).join(' ')
+
+    console.log('🎨 [图片生成上下文]:', imagePromptContext.substring(0, 200) + '...')
+
     setIsGenerating(true)
     setGenerationProgress(0)
     setError(null)
@@ -710,6 +719,7 @@ function CreatePageContent() {
         imageRatio,
         hasCover, // 添加封面选项
         coverRatio: '2.35:1', // 封面比例固定为2.35:1
+        imagePromptContext, // 添加图片生成上下文，提高相关性
         creationMode,
         originalInspiration: creationMode === 'original' ? originalInspiration : undefined,
         referenceArticles: creationMode === 'reference' ? selectedArticles : [],
@@ -2104,14 +2114,6 @@ function CreatePageContent() {
                     {!isEditing ? (
                       <>
                         <button
-                          onClick={() => setShowCoverPreview(true)}
-                          className="px-3 py-1.5 text-sm bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-lg hover:from-pink-600 hover:to-purple-600 flex items-center"
-                          title="预览封面"
-                        >
-                          <ImageIcon className="w-4 h-4 mr-1.5" />
-                          封面
-                        </button>
-                        <button
                           onClick={handleStartEdit}
                           className="px-3 py-1.5 text-sm bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center"
                         >
@@ -2191,6 +2193,27 @@ function CreatePageContent() {
                 {generatedArticles[currentArticleIndex] && (
                   <>
                     <div className="flex-1 overflow-y-auto p-6">
+                      {/* 封面图直接显示在文章顶部 */}
+                      {generatedArticles[currentArticleIndex].cover && (
+                        <div className="mb-6">
+                          <div
+                            className="w-full rounded-lg shadow-lg overflow-hidden"
+                            style={{
+                              aspectRatio: '2.35/1',
+                              backgroundImage: `url(${generatedArticles[currentArticleIndex].cover?.url || ''})`,
+                              backgroundSize: 'cover',
+                              backgroundPosition: 'center',
+                              backgroundRepeat: 'no-repeat'
+                            }}
+                          />
+                          {generatedArticles[currentArticleIndex].cover?.description && (
+                            <p className="text-xs text-gray-500 mt-2 text-center italic">
+                              封面：{generatedArticles[currentArticleIndex].cover.description}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
                       {!isEditing ? (
                         <h1 className="text-2xl font-bold text-gray-900 mb-6">
                           {generatedArticles[currentArticleIndex].title}
@@ -2352,206 +2375,5 @@ function CreatePageContent() {
         </div>
       )}
 
-      {/* 封面预览模态框 */}
-      {showCoverPreview && generatedArticles[currentArticleIndex] && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            {/* 模态框头部 */}
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 rounded-t-xl flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900 flex items-center">
-                <ImageIcon className="w-5 h-5 mr-2 text-pink-500" />
-                公众号封面预览
-              </h2>
-              <div className="flex items-center space-x-3">
-                <button
-                  onClick={handleRegenerateCover}
-                  disabled={regeneratingCover}
-                  className="px-4 py-2 text-sm bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-lg hover:from-pink-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                >
-                  {regeneratingCover ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      生成中...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      重新生成
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={() => setShowCoverPreview(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* 封面预览内容 */}
-            <div className="p-6 space-y-6">
-              {/* 公众号封面预览区域 */}
-              <div className="flex flex-col items-center">
-                <div className="w-full max-w-2xl">
-                  <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                    <h3 className="text-sm font-medium text-gray-700 mb-2 text-center">公众号文章封面预览</h3>
-                    <p className="text-xs text-gray-500 text-center">2.35:1 标准公众号封面比例</p>
-                  </div>
-
-                  {/* 封面图片容器 */}
-                  <div className="relative bg-white rounded-lg shadow-lg overflow-hidden" style={{ aspectRatio: '2.35/1' }}>
-                    {(() => {
-                      const article = generatedArticles[currentArticleIndex]
-                      console.log('封面预览检查:', {
-                        hasArticle: !!article,
-                        hasCover: !!article?.cover,
-                        coverUrl: article?.cover?.url?.substring(0, 100) + '...'
-                      })
-                      return article?.cover
-                    })() ? (
-                      <div
-                        className="w-full h-full"
-                        style={{
-                          backgroundImage: `url(${generatedArticles[currentArticleIndex]?.cover?.url || ''})`,
-                          backgroundSize: 'cover',
-                          backgroundPosition: 'center',
-                          backgroundRepeat: 'no-repeat'
-                        }}
-                        role="img"
-                        aria-label="公众号封面"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-pink-100 to-purple-100 flex items-center justify-center">
-                        <div className="text-center">
-                          <ImageIcon className="w-12 h-12 text-pink-400 mx-auto mb-3" />
-                          <p className="text-gray-600 font-medium">暂无封面图片</p>
-                          <p className="text-sm text-gray-500 mt-1">点击"重新生成"创建专属封面</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 封面信息 */}
-                  {generatedArticles[currentArticleIndex].cover && (
-                    <div className="mt-4 bg-gray-50 rounded-lg p-4">
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-500">封面标题：</span>
-                          <span className="text-gray-900 font-medium ml-2">
-                            {generatedArticles[currentArticleIndex].cover.title}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">生成时间：</span>
-                          <span className="text-gray-700 ml-2">
-                            {formatTime(generatedArticles[currentArticleIndex].cover.generatedAt)}
-                          </span>
-                        </div>
-                        {generatedArticles[currentArticleIndex].cover.template && (
-                          <div>
-                            <span className="text-gray-500">使用模板：</span>
-                            <span className="text-gray-700 ml-2">
-                              {COVER_TEMPLATES.find(t => t.id === generatedArticles[currentArticleIndex]?.cover?.template)?.name || '智能选择'}
-                            </span>
-                          </div>
-                        )}
-                        {generatedArticles[currentArticleIndex].cover.description && (
-                          <div className="col-span-2">
-                            <span className="text-gray-500">封面描述：</span>
-                            <span className="text-gray-700 ml-2">
-                              {generatedArticles[currentArticleIndex].cover.description}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* 分割线 */}
-              <div className="border-t border-gray-200"></div>
-
-              {/* 文章信息预览 */}
-              <div className="bg-gray-50 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">文章信息</h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">文章标题</label>
-                    <p className="text-lg font-medium text-gray-900 mt-1">
-                      {generatedArticles[currentArticleIndex].title}
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">字数统计</label>
-                      <p className="text-2xl font-bold text-blue-600 mt-1">
-                        {generatedArticles[currentArticleIndex].wordCount}
-                      </p>
-                      <p className="text-sm text-gray-500">字</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">配图数量</label>
-                      <p className="text-2xl font-bold text-green-600 mt-1">
-                        {generatedArticles[currentArticleIndex].images.length}
-                      </p>
-                      <p className="text-sm text-gray-500">张</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">阅读时间</label>
-                      <p className="text-2xl font-bold text-purple-600 mt-1">
-                        {generatedArticles[currentArticleIndex].readingTime}
-                      </p>
-                      <p className="text-sm text-gray-500">分钟</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 操作按钮 */}
-              <div className="flex justify-center space-x-4 pt-4">
-                <button
-                  onClick={() => {
-                    if (generatedArticles[currentArticleIndex].cover) {
-                      // 下载封面图片
-                      const link = document.createElement('a')
-                      link.href = generatedArticles[currentArticleIndex].cover.url
-                      link.download = `公众号封面-${generatedArticles[currentArticleIndex].title}.jpg`
-                      link.click()
-                    }
-                  }}
-                  disabled={!generatedArticles[currentArticleIndex].cover}
-                  className="px-6 py-3 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  下载封面
-                </button>
-                <button
-                  onClick={() => {
-                    setShowCoverPreview(false)
-                    // 滚动到文章预览区域
-                    document.getElementById('article-preview')?.scrollIntoView({ behavior: 'smooth' })
-                  }}
-                  className="px-6 py-3 text-sm bg-gray-500 text-white rounded-lg hover:bg-gray-600 flex items-center"
-                >
-                  <FileText className="w-4 h-4 mr-2" />
-                  查看文章
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// 包装需要登录的页面
-export default withAuth(function CreatePage() {
-  return (
-    <DashboardLayout>
-      <CreatePageContent />
-    </DashboardLayout>
   )
 })
