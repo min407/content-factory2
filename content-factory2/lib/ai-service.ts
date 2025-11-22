@@ -72,12 +72,21 @@ async function callOpenAI(
     throw new Error('API密钥未配置，请在设置中配置OpenRouter API密钥')
   }
 
+  // OpenRouter 需要特殊的请求头
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ' + config.apiKey,
+  }
+
+  // 如果是 OpenRouter，添加额外的请求头
+  if (config.apiBase.includes('openrouter.ai')) {
+    headers['HTTP-Referer'] = 'http://localhost:3000'
+    headers['X-Title'] = 'Content Factory'
+  }
+
   const response = await fetch(config.apiBase + '/chat/completions', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + config.apiKey,
-    },
+    headers,
     body: JSON.stringify({
       model: config.model,
       messages,
@@ -472,6 +481,22 @@ export async function generateSingleArticle(params: CreationParams): Promise<Gen
     referenceArticles = []
   } = params
 
+  // 获取用户配置的API
+  console.log('🔍 [内容创作] 开始获取用户配置...')
+  const userConfig = await UserApiConfigManager.getConfig(ApiProvider.OPENROUTER)
+  console.log('🔍 [内容创作] 获取到的用户配置:', userConfig ? {
+    hasApiKey: !!userConfig.apiKey,
+    apiKeyPrefix: userConfig.apiKey?.substring(0, 8) + '...',
+    hasApiBase: !!userConfig.apiBase,
+    model: userConfig.model
+  } : 'null')
+
+  const openaiUserConfig = userConfig ? {
+    apiKey: userConfig.apiKey || process.env.OPENAI_API_KEY || '',
+    apiBase: userConfig.apiBase || process.env.OPENAI_API_BASE || 'https://openrouter.ai/api/v1',
+    model: userConfig.model || process.env.OPENAI_MODEL || 'openai/gpt-4o'
+  } : undefined
+
   // 1. 检查缓存
   const cacheKey = ContentCache.generateCacheKey(params)
   const cachedContent = await ContentCache.getCachedContent(cacheKey)
@@ -592,7 +617,7 @@ ${referenceContent}
   const articleContent = await callOpenAI([
     { role: 'system', content: '你是专业的文章创作者，擅长基于深度洞察生成高质量内容。你的文章结构清晰，内容实用，语言优美。' },
     { role: 'user', content: articlePrompt }
-  ], 0.7)
+  ], 0.7, openaiUserConfig)
 
   // 6. 提取标题和统计字数
   const title = extractTitleFromContent(articleContent)
@@ -605,7 +630,7 @@ ${referenceContent}
     : Math.min(imageCount, ContentUtils.calculateImageCount(wordCountActual))
 
   // 8. 生成配图（使用新的智能图片生成系统）
-  const images = await generateSmartArticleImages(articleContent, title, actualImageCount, imageStyle, topic, imageRatio)
+  const images = await generateSmartArticleImages(articleContent, title, actualImageCount, imageStyle, topic, imageRatio, openaiUserConfig)
 
   // 9. 构建返回对象
   // 9. 生成封面图片
@@ -731,13 +756,14 @@ export async function generateSmartArticleImages(
   imageCount: number,
   imageStyle: string,
   topic?: TopicWithHistory,
-  imageRatio?: string
+  imageRatio?: string,
+  userConfig?: { apiKey: string; apiBase: string; model: string }
 ): Promise<string[]> {
   if (imageCount === 0) return []
 
   try {
     // 1. 基于文章内容生成图片提示词
-    const imagePrompts = await generateImagePromptsFromContent(articleContent, articleTitle, imageCount, topic)
+    const imagePrompts = await generateImagePromptsFromContent(articleContent, articleTitle, imageCount, topic, userConfig)
 
     // 2. 获取图片风格配置
     const styleConfig = IMAGE_STYLES.find(style => style.value === imageStyle) || IMAGE_STYLES[0]
@@ -785,7 +811,8 @@ async function generateImagePromptsFromContent(
   articleContent: string,
   articleTitle: string,
   count: number,
-  topic?: TopicWithHistory
+  topic?: TopicWithHistory,
+  userConfig?: { apiKey: string; apiBase: string; model: string }
 ): Promise<string[]> {
   try {
     // 截取文章关键段落用于分析
@@ -801,7 +828,7 @@ async function generateImagePromptsFromContent(
         content: '你是顶级插画提示词专家，专门生成完全不同的场景描述。你的核心原则是：每张图片都必须有独特的视觉识别，绝对不能有相似或重复的场景。严格遵循用户的差异化要求，确保时间、地点、人物、视角、情绪、动作都完全不同。只输出简洁的提示词，不要解释。'
       },
       { role: 'user', content: prompt }
-    ], 0.7)
+    ], 0.7, userConfig)
 
     // 解析响应中的提示词
     let prompts = response
@@ -1033,9 +1060,10 @@ export async function cleanupExpiredData(): Promise<void> {
  */
 async function generateSingleImage(prompt: string): Promise<string> {
   // 优先使用用户配置的API密钥
-  const apiKey = ApiConfigManager.getApiKey(ApiProvider.SILICONFLOW)
-  const apiBase = ApiConfigManager.getApiBase(ApiProvider.SILICONFLOW) || 'https://api.siliconflow.cn/v1'
-  const model = ApiConfigManager.getModel(ApiProvider.SILICONFLOW) || 'Kwai-Kolors/Kolors'
+  const userConfig = await UserApiConfigManager.getConfig(ApiProvider.SILICONFLOW)
+  const apiKey = userConfig?.apiKey || process.env.SILICONFLOW_API_KEY || ''
+  const apiBase = userConfig?.apiBase || process.env.SILICONFLOW_API_BASE || 'https://api.siliconflow.cn/v1'
+  const model = userConfig?.model || process.env.SILICONFLOW_MODEL || 'Kwai-Kolors/Kolors'
 
   // 如果没有API key，直接使用fallback图片
   if (!apiKey) {
