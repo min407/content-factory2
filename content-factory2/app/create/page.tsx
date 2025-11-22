@@ -269,6 +269,8 @@ function CreatePageContent() {
             const isRecent = new Date().getTime() - new Date(state.timestamp).getTime() < 24 * 60 * 60 * 1000 // 24小时内
 
             if (isRecent && !draftId) { // 只有在没有编辑草稿时才恢复状态
+              console.log('🔄 [状态恢复] 从localStorage恢复状态:', state)
+
               if (state.customTopic) setCustomTopic(state.customTopic)
               if (state.contentLength) setContentLength(state.contentLength)
               if (state.writingStyle) setWritingStyle(state.writingStyle)
@@ -280,6 +282,11 @@ function CreatePageContent() {
               if (state.generatedArticles) setGeneratedArticles(state.generatedArticles)
               if (state.currentArticleIndex !== undefined) setCurrentArticleIndex(state.currentArticleIndex)
               if (state.showPreview !== undefined) setShowPreview(state.showPreview)
+              if (state.originalInspiration) setOriginalInspiration(state.originalInspiration)
+              if (state.creationMode) {
+                console.log('🔄 [状态恢复] 恢复创作模式:', state.creationMode)
+                setCreationMode(state.creationMode)
+              }
 
               setSuccess('已恢复上次的创作状态')
               setTimeout(() => setSuccess(null), 3000)
@@ -313,7 +320,9 @@ function CreatePageContent() {
             enableBatch,
             generatedArticles,
             currentArticleIndex,
-            showPreview
+            showPreview,
+            originalInspiration, // 添加原创灵感到自动保存
+            creationMode // 添加创作模式到自动保存
           }
           localStorage.setItem('content-factory-last-state', JSON.stringify(state))
         }
@@ -322,19 +331,13 @@ function CreatePageContent() {
       }
     }
 
-    // 监听状态变化并保存
-    const stateKeys = [
-      customTopic, contentLength, writingStyle, imageCount, imageStyle, imageRatio,
-      batchCount, enableBatch, generatedArticles, currentArticleIndex, showPreview
-    ]
-
     // 防抖保存
     const timeoutId = setTimeout(saveState, 2000)
 
     return () => {
       clearTimeout(timeoutId)
     }
-  }, [isMounted, customTopic, contentLength, writingStyle, imageCount, imageStyle, imageRatio, batchCount, enableBatch, generatedArticles, currentArticleIndex, showPreview])
+  }, [isMounted, customTopic, contentLength, writingStyle, imageCount, imageStyle, imageRatio, batchCount, enableBatch, generatedArticles, currentArticleIndex, showPreview, originalInspiration, creationMode])
 
   // 筛选逻辑 - 根据选择的分类筛选选题
   useEffect(() => {
@@ -575,6 +578,11 @@ function CreatePageContent() {
       if (isSelected) {
         return prev.filter(a => a.title !== article.title)
       } else {
+        // 当选择第一篇爆文时,自动切换到对标模式
+        if (prev.length === 0) {
+          console.log('✅ [模式切换] 用户选择了第一批爆文,自动切换到对标模式')
+          setCreationMode('reference')
+        }
         return [...prev, article]
       }
     })
@@ -671,6 +679,10 @@ function CreatePageContent() {
     }
 
     // 验证创作模式要求
+    console.log('🔍 [创作验证] 当前模式:', creationMode)
+    console.log('🔍 [创作验证] 原创灵感:', originalInspiration.trim())
+    console.log('🔍 [创作验证] 对标文章数量:', selectedArticles.length)
+
     if (creationMode === 'original' && !originalInspiration.trim()) {
       setError('原创模式请输入原创灵感内容')
       return
@@ -679,6 +691,8 @@ function CreatePageContent() {
       setError('对标模式请选择至少一篇对标文章')
       return
     }
+
+    console.log('✅ [创作验证] 验证通过，开始创作')
 
     setIsGenerating(true)
     setGenerationProgress(0)
@@ -754,8 +768,19 @@ function CreatePageContent() {
     contentLength,
     writingStyle,
     imageCount,
+    imageStyle,
+    imageRatio,
     enableBatch,
-    batchCount
+    batchCount,
+    creationMode,
+    originalInspiration,
+    selectedArticles,
+    toggleArticleSelect,
+    toggleArticleContent,
+    extractKeyPoints,
+    analyzeWritingStyle,
+    analyzeContentStructure,
+    determineCreationStrategy
   ])
 
   // 复制文章内容
@@ -1690,7 +1715,14 @@ function CreatePageContent() {
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
-                    onClick={() => setCreationMode('reference')}
+                    onClick={() => {
+                      console.log('🔄 [模式切换] 用户点击对标模式')
+                      setCreationMode('reference')
+                      // 强制触发重新渲染来确保状态更新
+                      setTimeout(() => {
+                        console.log('🔄 [延迟检查] 1秒后模式:', creationMode)
+                      }, 1000)
+                    }}
                     className={`p-3 rounded-lg border-2 transition-all ${
                       creationMode === 'reference'
                         ? 'border-blue-500 bg-blue-50 text-blue-700'
@@ -1704,7 +1736,10 @@ function CreatePageContent() {
                     </div>
                   </button>
                   <button
-                    onClick={() => setCreationMode('original')}
+                    onClick={() => {
+                      console.log('🔄 [模式切换] 用户点击原创模式')
+                      setCreationMode('original')
+                    }}
                     className={`p-3 rounded-lg border-2 transition-all ${
                       creationMode === 'original'
                         ? 'border-green-500 bg-green-50 text-green-700'
@@ -1728,7 +1763,10 @@ function CreatePageContent() {
                     </label>
                     <textarea
                       value={originalInspiration}
-                      onChange={(e) => setOriginalInspiration(e.target.value)}
+                      onChange={(e) => {
+                        console.log('📝 [输入事件] 用户输入原创灵感:', e.target.value)
+                        setOriginalInspiration(e.target.value)
+                      }}
                       placeholder="请输入您的原创灵感、观点和想法..."
                       className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
                       rows={4}
