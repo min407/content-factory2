@@ -129,6 +129,9 @@ export interface CreationParams {
   originalInspiration?: string // 新增：原创灵感
   referenceArticles?: any[] // 新增：对标文章
   articleStructure?: string // 新增：文章结构类型
+  hasCover?: boolean // 新增：是否包含封面图
+  coverRatio?: string // 新增：封面图片比例
+  imagePromptContext?: any // 新增：图片提示词上下文
 }
 
 // 文章历史记录

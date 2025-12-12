@@ -252,6 +252,12 @@ function CreatePageContent() {
   const [selectedArticles, setSelectedArticles] = useState<any[]>([])
   const [loadingArticles, setLoadingArticles] = useState(false)
   const [creationMode, setCreationMode] = useState<'original' | 'reference'>('original')
+
+  // 提示词测试相关状态
+  const [activeTab, setActiveTab] = useState<'create' | 'prompt-test'>('create')
+  const [testPrompt, setTestPrompt] = useState('')
+  const [testResult, setTestResult] = useState('')
+  const [isTestingPrompt, setIsTestingPrompt] = useState(false)
   const [originalInspiration, setOriginalInspiration] = useState('')
   const [expandedArticle, setExpandedArticle] = useState<string | null>(null)
 
@@ -1315,7 +1321,42 @@ function CreatePageContent() {
           <p className="text-gray-500 mt-1">基于AI智能生成高质量文章，自动配图，支持批量创作</p>
         </div>
 
-      {/* 错误和成功提示 */}
+        {/* Tab 切换 */}
+        <div className="mb-6">
+          <div className="flex space-x-1 p-1 bg-gray-100 rounded-lg w-fit">
+            <button
+              onClick={() => setActiveTab('create')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                activeTab === 'create'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <div className="flex items-center">
+                <PenTool className="w-4 h-4 mr-2" />
+                内容创作
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('prompt-test')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                activeTab === 'prompt-test'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <div className="flex items-center">
+                <Wand2 className="w-4 h-4 mr-2" />
+                提示词测试
+              </div>
+            </button>
+          </div>
+        </div>
+
+          {/* 内容创作 Tab */}
+      {activeTab === 'create' && (
+        <div>
+        {/* 错误和成功提示 */}
       {error && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center">
           <X className="w-5 h-5 text-red-500 mr-2" />
@@ -2553,7 +2594,148 @@ function CreatePageContent() {
             </div>
           </div>
         </div>
+        )}
+        </div>
       )}
+
+        {/* 提示词测试 Tab */}
+        {activeTab === 'prompt-test' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 左侧：提示词编辑 */}
+            <div className="bg-white rounded-xl p-6 border border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">测试提示词</h2>
+
+              {/* 预设模板 */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  预设模板
+                </label>
+                <select
+                  onChange={(e) => {
+                    const templateKey = e.target.value
+                    if (templateKey && templateKey !== '') {
+                      setTestPrompt(templateKey)
+                    }
+                  }}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">选择预设模板...</option>
+                  <option value="卷儿 - 转行主题">卷儿 - 转行主题</option>
+                  <option value="卷儿 - 迷茫拆解">卷儿 - 迷茫拆解</option>
+                  <option value="卷儿 - 副业探索">卷儿 - 副业探索</option>
+                  <option value="卷儿 - 理性思考">卷儿 - 理性思考</option>
+                </select>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  提示词内容
+                </label>
+                <textarea
+                  value={testPrompt}
+                  onChange={(e) => setTestPrompt(e.target.value)}
+                  className="w-full h-80 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="输入要测试的提示词..."
+                />
+              </div>
+
+              {/* 提示词建议 */}
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <h3 className="text-sm font-medium text-blue-900 mb-2">💡 提示词优化建议</h3>
+                <ul className="text-xs text-blue-800 space-y-1">
+                  <li>• 明确设定AI角色身份</li>
+                  <li>• 提供具体的目标和要求</li>
+                  <li>• 给出清晰的输出格式</li>
+                  <li>• 包含具体的示例</li>
+                  <li>• 设定合理的约束条件</li>
+                </ul>
+              </div>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => {
+                    setIsTestingPrompt(true)
+                    setError(null)
+
+                    fetch('/api/test-prompt', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({ prompt: testPrompt }),
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                      if (data.success) {
+                        setTestResult(data.result)
+                      } else {
+                        setError(data.error || '测试失败')
+                      }
+                    })
+                    .catch(err => {
+                      setError('测试失败: ' + err.message)
+                    })
+                    .finally(() => {
+                      setIsTestingPrompt(false)
+                    })
+                  }}
+                  disabled={isTestingPrompt || !testPrompt.trim()}
+                  className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                  {isTestingPrompt ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      测试中...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-4 h-4 mr-2" />
+                      测试提示词
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    setTestPrompt('')
+                    setTestResult('')
+                  }}
+                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+                >
+                  清空
+                </button>
+              </div>
+            </div>
+
+            {/* 右侧：测试结果 */}
+            <div className="bg-white rounded-xl p-6 border border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">测试结果</h2>
+              {testResult ? (
+                <div className="h-96 overflow-y-auto">
+                  <pre className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">
+                    {testResult}
+                  </pre>
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(testResult)
+                        alert('已复制到剪贴板')
+                      }}
+                      className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                    >
+                      复制结果
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="h-96 flex items-center justify-center text-gray-500">
+                  <div className="text-center">
+                    <FileText className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                    <p>测试结果将显示在这里</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
     </div>
   )

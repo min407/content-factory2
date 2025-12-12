@@ -1342,7 +1342,7 @@ function AnalysisPageContent() {
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-sm text-gray-600">
-                            {'' || '-'}
+                            {'-'}
                           </span>
                         </td>
                         <td className="px-4 py-3">

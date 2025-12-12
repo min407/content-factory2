@@ -117,7 +117,11 @@ export async function POST(request: NextRequest) {
     }))
 
     // 阶段1: 深度文章分析（使用用户配置）
-    const summaries = await deepAnalyzeArticles(mockArticles, userApiConfig)
+    const summaries = await deepAnalyzeArticles(mockArticles, {
+      apiKey: userApiConfig.apiKey!,
+      apiBase: userApiConfig.apiBase!,
+      model: userApiConfig.model!
+    })
 
     // 计算统计数据
     const totalReads = mockArticles.reduce((sum, a) => sum + (a.reads || 0), 0)
@@ -133,7 +137,11 @@ export async function POST(request: NextRequest) {
     }
 
     // 阶段2: 生成选题洞察（使用用户配置）
-    const insights = await generateSmartTopicInsights(summaries, stats, userApiConfig)
+    const insights = await generateSmartTopicInsights(summaries, stats, {
+      apiKey: userApiConfig.apiKey!,
+      apiBase: userApiConfig.apiBase!,
+      model: userApiConfig.model!
+    })
 
     // 构建完整的分析结果，包含时间戳
     const analysisResult = {
