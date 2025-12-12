@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
       creationMode,
       originalInspiration,
       referenceArticles,
+      articleStructure,
       isBatch,
       count,
       hasCover,
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
       creationMode,
       originalInspiration,
       referenceArticles,
+      articleStructure,
       hasCover,
       coverRatio,
       imagePromptContext

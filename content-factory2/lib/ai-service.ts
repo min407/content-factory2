@@ -18,27 +18,108 @@ import { ContentCache, IMAGE_STYLES, IMAGE_RATIOS, COVER_TEMPLATES, ContentUtils
 import { UserApiConfigManager } from './user-api-config'
 import { ApiProvider } from '@/types/api-config'
 
+// 获取文章结构类型的提示词模板
+const getStructurePromptTemplate = (structureType: string): string => {
+  const templates: Record<string, string> = {
+    'auto': '请根据内容特点和目标读者，自动选择最适合的公众号文章结构。',
+
+    'checklist': `
+请采用**清单体结构**创作，要求：
+1. 开头：明确说明清单主题和核心价值（3-5句话）
+2. 主体：以"1、2、3……"数字列点形式展开，每个要点包含：
+   - 简洁有力的小标题
+   - 具体说明（2-3句话）
+   - 案例/数据/工具推荐（1个）
+3. 结尾：总结要点，给出行动建议或推荐工具
+4. 风格：条理清晰，信息密度适中，易于快速阅读`,
+
+    'knowledge_parallel': `
+请采用**干货体-并列式结构**创作，要求：
+1. 开头：提出核心问题或主题，引出多个观点
+2. 主体：按"观点1+案例1+小结+观点2+案例2+小结……"结构：
+   - 每个观点独立成段，逻辑并列
+   - 每个观点搭配真实案例或数据支撑
+   - 观点之间保持平衡，避免主次不分
+3. 结尾：总结观点之间的关系，给出综合建议
+4. 风格：逻辑严谨，论证充分，专业性强`,
+
+    'knowledge_progressive': `
+请采用**干货体-递进式结构**创作，要求：
+1. 开头：明确概念定义或问题现状（是什么）
+2. 主体：按"现状分析→原因拆解→解决方案"递进：
+   - 深入分析问题的根本原因（为什么）
+   - 逐步给出解决方案的层次和步骤（怎么办）
+   - 每个层次都要建立在前一层次基础上
+3. 结尾：总结解决路径，给出可操作的建议
+4. 风格：深度思考，逻辑严密，层层递进`,
+
+    'story': `
+请采用**故事体结构**创作，要求：
+1. 开头：制造冲突或悬念，快速吸引注意力
+2. 主体：按"起因→经过→转折→结果"推进：
+   - 展开具体细节，营造画面感和代入感
+   - 描述挑战、挣扎和突破的关键时刻
+   - 融入真实情感，引发读者共鸣
+3. 结尾：升华情绪，提炼感悟或金句
+4. 风格：情感真挚，画面感强，有温度的叙事`,
+
+    'scqa': `
+请采用**SCQA结构**创作，要求：
+1. 情境(Situation)：描述背景或现状，建立共识
+2. 冲突(Complication)：指出问题或矛盾，引发关注
+3. 疑问(Question)：提出核心问题，引导思考
+4. 答案(Answer)：给出解决方案，提供价值
+5. 风格：条理清晰，逻辑严密，适合分析类内容`,
+
+    'staircase': `
+请采用**爬楼梯结构**创作，要求：
+1. 起点：现状描述或问题引入
+2. 楼梯1：第一层观点/情节发展
+3. 楼梯2：第二层深入/情节推进
+4. 楼梯3：更高层次/情节高潮
+5. 终点：总结升华/结局收尾
+6. 每一层都要比前一层更有深度或强度
+7. 风格：逐步升级，层层深入，引导情绪`,
+
+    'assorted': `
+请采用**拼盘式结构**创作，要求：
+1. 开头：明确主题方向，建立统一框架
+2. 主体：按时间、空间、类型等关键词串联：
+   - 多个素材模块，形式多样
+   - 每个模块相对独立但服务于统一主题
+   - 用过渡句自然连接不同模块
+3. 结尾：整合各模块要点，给出整体建议
+4. 风格：内容丰富，形式多样，信息量大`
+  }
+
+  return templates[structureType] || templates['auto']
+}
+
 /**
  * 获取OpenAI配置
  */
 async function getOpenAIConfig(userConfig?: { apiKey: string; apiBase: string; model: string }) {
   try {
-    // 临时修复：直接使用新的API密钥
-    const envApiKey = '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'
-    const envApiBase = 'https://openrouter.ai/api/v1'
-    const envModel = 'openai/gpt-4o'
+    // 直接使用环境变量中的API配置
+    const envApiKey = process.env.OPENAI_API_KEY || ''
+    const envApiBase = process.env.OPENAI_API_BASE || 'https://openrouter.ai/api/v1'
+    const envModel = process.env.OPENAI_MODEL || 'openai/gpt-4o'
 
-    console.log(`🔑 [AI服务] 强制使用环境变量API密钥: ${envApiKey.substring(0, 8)}...`)
-    console.log(`🌐 [AI服务] 强制使用环境变量API地址: ${envApiBase}`)
+    if (envApiKey) {
+      console.log(`🔑 [AI服务] 使用环境变量API密钥: ${envApiKey.substring(0, 8)}...`)
+      console.log(`🌐 [AI服务] 使用环境变量API地址: ${envApiBase}`)
+      console.log(`🤖 [AI服务] 使用模型: ${envModel}`)
 
-    return {
-      apiKey: envApiKey,
-      apiBase: envApiBase,
-      model: envModel
+      return {
+        apiKey: envApiKey,
+        apiBase: envApiBase,
+        model: envModel
+      }
+    } else {
+      throw new Error('环境变量中未找到OpenAI API配置')
     }
   } catch (error) {
     console.error('获取AI配置失败:', error)
-    // 回退到环境变量
     return {
       apiKey: process.env.OPENAI_API_KEY || '',
       apiBase: process.env.OPENAI_API_BASE || 'https://openrouter.ai/api/v1',
@@ -560,7 +641,12 @@ ${originalInspiration}
     referenceContent = ''
   }
 
-  // 5. 构建完整文章生成提示词
+  // 5. 获取文章结构类型提示词（如果选择了对标模式）
+  const structurePrompt = creationMode === 'reference' && params.articleStructure
+    ? getStructurePromptTemplate(params.articleStructure)
+    : ''
+
+  // 6. 构建完整文章生成提示词
   const articlePrompt = `
 请基于以下信息，生成一篇高质量的微信公众号文章：
 
@@ -570,9 +656,11 @@ ${originalInspiration}
 **选题**: ${topic.title}
 **描述**: ${topic.description}
 **重要指数**: ${topic.confidence}%
-(uniqueAngle ? '**独特角度**: ' + uniqueAngle : '')
+${uniqueAngle ? '**独特角度**: ' + uniqueAngle : ''}
 
 ${stylePrompt}
+
+${structurePrompt}
 
 ${referenceContent}
 
@@ -621,7 +709,16 @@ ${referenceContent}
   ], 0.7, openaiUserConfig)
 
   // 6. 提取标题和统计字数
-  const title = extractTitleFromContent(articleContent)
+  // 对标模式下直接使用第一篇对标文章的标题
+  let title: string
+  if (creationMode === 'reference' && referenceArticles.length > 0) {
+    title = referenceArticles[0].title
+    console.log('对标模式：使用原文章标题:', title)
+  } else {
+    title = extractTitleFromContent(articleContent)
+    console.log('原创模式：生成新标题:', title)
+  }
+
   const wordCountActual = countWords(articleContent)
   const readingTime = calculateReadingTime(articleContent)
 
@@ -1302,7 +1399,7 @@ async function callImageGenerationAPI(prompt: string): Promise<string> {
   // 可以是DALL-E、Midjourney、Stable Diffusion等
 
   try {
-    const openaiConfig = getOpenAIConfig()
+    const openaiConfig = await getOpenAIConfig()
 
     // 检查API Key是否配置
     if (!openaiConfig.apiKey) {

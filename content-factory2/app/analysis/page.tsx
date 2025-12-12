@@ -202,6 +202,9 @@ function AnalysisPageContent() {
   const [aiSummaries, setAiSummaries] = useState<ArticleSummary[]>([])
   const [selectedInsights, setSelectedInsights] = useState<Set<number>>(new Set())
 
+  // 排行榜维度选择状态
+  const [rankingDimension, setRankingDimension] = useState<'reads' | 'likes' | 'shares' | 'engagement'>('likes')
+
   // 保存选中的洞察到localStorage
   const saveSelectedInsights = useCallback(() => {
     if (aiInsights.length === 0) {
@@ -430,7 +433,28 @@ function AnalysisPageContent() {
     }
   }
 
-  // 获取点赞TOP5文章
+  // 获取阅读量TOP10文章
+  const getTopReadsArticles = () => {
+    if (!articles || articles.length === 0) {
+      return []
+    }
+
+    return [...articles]
+      .sort((a, b) => (b.read || 0) - (a.read || 0))
+      .slice(0, 10)
+      .map(article => ({
+        title: article.title,
+        reads: article.read || 0,
+        likes: article.praise || 0,
+        shares: article.shares || 0,
+        engagement: article.read > 0 ? ((article.praise || 0) / article.read * 100).toFixed(1) + '%' : '0%',
+        url: article.url || article.short_link || '',
+        publishTime: article.publish_time_str || '',
+        wxName: article.wx_name || '',
+      }))
+  }
+
+  // 获取点赞TOP10文章
   const getTopLikesArticles = () => {
     if (!articles || articles.length === 0) {
       return []
@@ -438,18 +462,42 @@ function AnalysisPageContent() {
 
     return [...articles]
       .sort((a, b) => (b.praise || 0) - (a.praise || 0))
-      .slice(0, articleCount)
+      .slice(0, 10)
       .map(article => ({
         title: article.title,
-        likes: article.praise || 0,
         reads: article.read || 0,
-        engagement: article.read > 0 ? ((article.praise / article.read) * 100).toFixed(0) + '%' : '0%',
+        likes: article.praise || 0,
+        shares: article.shares || 0,
+        engagement: article.read > 0 ? ((article.praise || 0) / article.read * 100).toFixed(1) + '%' : '0%',
         url: article.url || article.short_link || '',
         publishTime: article.publish_time_str || '',
+        wxName: article.wx_name || '',
       }))
   }
 
-  // 获取互动率TOP5文章
+  // 获取转发TOP10文章（预留功能，由于API可能不提供转发数据）
+  const getTopSharesArticles = () => {
+    if (!articles || articles.length === 0) {
+      return []
+    }
+
+    return [...articles]
+      .filter(article => (article.shares || 0) > 0) // 只显示有转发数据的文章
+      .sort((a, b) => (b.shares || 0) - (a.shares || 0))
+      .slice(0, 10)
+      .map(article => ({
+        title: article.title,
+        reads: article.read || 0,
+        likes: article.praise || 0,
+        shares: article.shares || 0,
+        engagement: article.read > 0 ? ((article.praise || 0) / article.read * 100).toFixed(1) + '%' : '0%',
+        url: article.url || article.short_link || '',
+        publishTime: article.publish_time_str || '',
+        wxName: article.wx_name || '',
+      }))
+  }
+
+  // 获取互动率TOP10文章
   const getTopEngagementArticles = () => {
     if (!articles || articles.length === 0) {
       return []
@@ -462,15 +510,68 @@ function AnalysisPageContent() {
         const engagementB = (b.praise || 0) / b.read
         return engagementB - engagementA
       })
-      .slice(0, articleCount)
+      .slice(0, 10)
       .map(article => ({
         title: article.title,
-        likes: article.praise || 0,
         reads: article.read || 0,
-        engagement: ((article.praise || 0) / article.read * 100).toFixed(0) + '%',
+        likes: article.praise || 0,
+        shares: article.shares || 0,
+        engagement: ((article.praise || 0) / article.read * 100).toFixed(1) + '%',
         url: article.url || article.short_link || '',
         publishTime: article.publish_time_str || '',
+        wxName: article.wx_name || '',
       }))
+  }
+
+  // 根据选择的维度获取排行榜数据
+  const getRankingData = () => {
+    switch (rankingDimension) {
+      case 'reads':
+        return getTopReadsArticles()
+      case 'likes':
+        return getTopLikesArticles()
+      case 'shares':
+        return getTopSharesArticles()
+      case 'engagement':
+        return getTopEngagementArticles()
+      default:
+        return getTopLikesArticles()
+    }
+  }
+
+  // 获取排行榜维度配置
+  const getRankingDimensionConfig = () => {
+    const configs = {
+      reads: {
+        label: '阅读量TOP10',
+        icon: <Eye className="w-5 h-5 mr-2 text-blue-500" />,
+        valueKey: 'reads',
+        unit: '阅读',
+        color: 'blue'
+      },
+      likes: {
+        label: '点赞量TOP10',
+        icon: <Heart className="w-5 h-5 mr-2 text-red-500" />,
+        valueKey: 'likes',
+        unit: '点赞',
+        color: 'red'
+      },
+      shares: {
+        label: '转发量TOP10',
+        icon: <ExternalLink className="w-5 h-5 mr-2 text-green-500" />,
+        valueKey: 'shares',
+        unit: '转发',
+        color: 'green'
+      },
+      engagement: {
+        label: '互动率TOP10',
+        icon: <Zap className="w-5 h-5 mr-2 text-purple-500" />,
+        valueKey: 'engagement',
+        unit: '互动',
+        color: 'purple'
+      }
+    }
+    return configs[rankingDimension]
   }
 
   // 下载洞察报告
@@ -502,8 +603,10 @@ function AnalysisPageContent() {
         expectation: insight.demandPainPoint?.expectation || ''
       })),
       topArticles: {
-        mostLiked: topLikesArticles,
-        highestEngagement: topEngagementArticles
+        ranking: {
+          dimension: rankingConfig.label,
+          articles: rankingData
+        }
       }
     }
 
@@ -534,16 +637,13 @@ function AnalysisPageContent() {
     })
 
     content += `\n【热门文章分析】\n`
-    content += `点赞最高文章：\n`
-    reportData.topArticles.mostLiked.forEach((article, index) => {
+    content += `${reportData.topArticles.ranking.dimension}：\n`
+    reportData.topArticles.ranking.articles.forEach((article, index) => {
       content += `${index + 1}. ${article.title}\n`
-      content += `   点赞：${article.likes} | 阅读：${article.reads} | 互动率：${article.engagement}\n`
-    })
-
-    content += `\n互动率最高文章：\n`
-    reportData.topArticles.highestEngagement.forEach((article, index) => {
-      content += `${index + 1}. ${article.title}\n`
-      content += `   点赞：${article.likes} | 阅读：${article.reads} | 互动率：${article.engagement}\n`
+      content += `   阅读：${article.reads.toLocaleString()} | 点赞：${article.likes.toLocaleString()} | 互动率：${article.engagement}\n`
+      if (article.shares > 0) {
+        content += `   转发：${article.shares.toLocaleString()}\n`
+      }
     })
 
     // 创建下载
@@ -611,8 +711,8 @@ function AnalysisPageContent() {
   }
 
   const stats = calculateStats()
-  const topLikesArticles = getTopLikesArticles()
-  const topEngagementArticles = getTopEngagementArticles()
+  const rankingData = getRankingData()
+  const rankingConfig = getRankingDimensionConfig()
 
   return (
     <div className="p-6">
@@ -847,114 +947,142 @@ function AnalysisPageContent() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* 点赞TOP5 */}
-            <div className="bg-white rounded-xl p-6 border border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <Award className="w-5 h-5 mr-2 text-yellow-500" />
-                  点赞量TOP5
-                </h2>
-              </div>
-              <div className="space-y-3">
-                {topLikesArticles.length > 0 ? topLikesArticles.map((article, index) => (
-                  <div
-                    key={index}
-                    className={`p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors group ${article.url ? 'cursor-pointer' : ''}`}
-                    onClick={() => handleItemClick(article)}
+          {/* 多维度排行榜TOP10 */}
+          <div className="bg-white rounded-xl p-6 border border-gray-200">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                <Award className="w-5 h-5 mr-2 text-yellow-500" />
+                文章排行榜
+              </h2>
+
+              {/* 维度选择按钮 */}
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-500 mr-2">排序维度：</span>
+                {[
+                  { value: 'reads', label: '阅读量', color: 'blue' },
+                  { value: 'likes', label: '点赞量', color: 'red' },
+                  { value: 'shares', label: '转发量', color: 'green' },
+                  { value: 'engagement', label: '互动率', color: 'purple' }
+                ].map((dimension) => (
+                  <button
+                    key={dimension.value}
+                    onClick={() => setRankingDimension(dimension.value as any)}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                      rankingDimension === dimension.value
+                        ? `bg-${dimension.color}-500 text-white shadow-sm`
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center">
-                          <span className="text-lg font-bold text-yellow-500 mr-2">#{index + 1}</span>
-                          <h3 className={`font-medium text-gray-900 line-clamp-1 transition-colors ${article.url ? 'group-hover:text-blue-600' : ''}`}>{article.title}</h3>
-                          {article.url && <ExternalLink className="w-4 h-4 ml-2 text-gray-400 group-hover:text-blue-600 flex-shrink-0" />}
-                        </div>
-                        <div className="flex items-center mt-2 space-x-4 text-sm text-gray-500">
-                          <span className="flex items-center">
-                            <Eye className="w-4 h-4 mr-1" />
-                            {article.reads.toLocaleString()}
-                          </span>
-                          <span className="flex items-center">
-                            <Heart className="w-4 h-4 mr-1 text-red-500" />
-                            {article.likes.toLocaleString()}
-                          </span>
-                          <span className="flex items-center">
-                            <TrendingUp className="w-4 h-4 mr-1 text-green-500" />
-                            {article.engagement}
-                          </span>
-                          {article.publishTime && (
-                            <span className="flex items-center">
-                              <Clock className="w-4 h-4 mr-1" />
-                              {article.publishTime}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <Award className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                    <p>暂无数据</p>
-                  </div>
-                )}
+                    {dimension.label}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* 互动率TOP5 */}
-            <div className="bg-white rounded-xl p-6 border border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <Zap className="w-5 h-5 mr-2 text-purple-500" />
-                  互动率TOP5
-                </h2>
+            {/* 当前维度标签 */}
+            <div className="mb-4 flex items-center justify-center">
+              <div className={`inline-flex items-center px-4 py-2 rounded-lg bg-${rankingConfig.color}-50 border border-${rankingConfig.color}-200`}>
+                {rankingConfig.icon}
+                <span className={`font-semibold text-${rankingConfig.color}-700`}>{rankingConfig.label}</span>
               </div>
-              <div className="space-y-3">
-                {topEngagementArticles.length > 0 ? topEngagementArticles.map((article, index) => (
-                  <div
-                    key={index}
-                    className={`p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors group ${article.url ? 'cursor-pointer' : ''}`}
-                    onClick={() => handleItemClick(article)}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center">
-                          <span className="text-lg font-bold text-purple-500 mr-2">#{index + 1}</span>
-                          <h3 className={`font-medium text-gray-900 line-clamp-1 transition-colors ${article.url ? 'group-hover:text-blue-600' : ''}`}>{article.title}</h3>
-                          {article.url && <ExternalLink className="w-4 h-4 ml-2 text-gray-400 group-hover:text-blue-600 flex-shrink-0" />}
-                        </div>
-                        <div className="flex items-center mt-2 space-x-4 text-sm text-gray-500">
+            </div>
+
+            {/* 排行榜内容 */}
+            <div className="space-y-3">
+              {rankingData.length > 0 ? rankingData.map((article, index) => (
+                <div
+                  key={index}
+                  className={`p-4 rounded-lg bg-gradient-to-r from-gray-50 to-gray-100 hover:from-${rankingConfig.color}-50 hover:to-gray-100 transition-all duration-200 group ${article.url ? 'cursor-pointer' : ''}`}
+                  onClick={() => handleItemClick(article)}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center mb-2">
+                        <span className={`text-lg font-bold text-${rankingConfig.color}-500 mr-3 min-w-[30px]`}>
+                          #{index + 1}
+                        </span>
+                        <h3 className={`font-medium text-gray-900 line-clamp-2 transition-colors flex-1 ${article.url ? 'group-hover:text-blue-600' : ''}`}>
+                          {article.title}
+                        </h3>
+                        {article.url && <ExternalLink className="w-4 h-4 ml-2 text-gray-400 group-hover:text-blue-600 flex-shrink-0" />}
+                      </div>
+
+                      {/* 文章信息行 */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-6 text-sm text-gray-600">
                           <span className="flex items-center">
-                            <Eye className="w-4 h-4 mr-1" />
+                            <Eye className="w-4 h-4 mr-1 text-blue-500" />
                             {article.reads.toLocaleString()}
                           </span>
                           <span className="flex items-center">
                             <Heart className="w-4 h-4 mr-1 text-red-500" />
                             {article.likes.toLocaleString()}
                           </span>
-                          <span className="flex items-center text-purple-600 font-semibold">
+                          {rankingDimension === 'shares' && article.shares > 0 && (
+                            <span className="flex items-center">
+                              <ExternalLink className="w-4 h-4 mr-1 text-green-500" />
+                              {article.shares.toLocaleString()}
+                            </span>
+                          )}
+                          <span className={`flex items-center font-medium ${rankingDimension === 'engagement' ? `text-${rankingConfig.color}-600` : ''}`}>
                             <TrendingUp className="w-4 h-4 mr-1" />
                             {article.engagement}
                           </span>
-                          {article.publishTime && (
-                            <span className="flex items-center">
-                              <Clock className="w-4 h-4 mr-1" />
-                              {article.publishTime}
-                            </span>
-                          )}
                         </div>
+
+                        {article.publishTime && (
+                          <span className="flex items-center text-xs text-gray-500">
+                            <Clock className="w-3 h-3 mr-1" />
+                            {article.publishTime}
+                          </span>
+                        )}
                       </div>
+
+                      {/* 公众号名称 */}
+                      {article.wxName && (
+                        <div className="mt-2">
+                          <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded">
+                            {article.wxName}
+                          </span>
+                        </div>
+                      )}
                     </div>
+
+                    {/* 排名徽章 */}
+                    {index < 3 && (
+                      <div className={`ml-4 w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shadow-lg ${
+                        index === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600' :
+                        index === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-500' :
+                        'bg-gradient-to-br from-orange-400 to-orange-600'
+                      }`}>
+                        {index + 1}
+                      </div>
+                    )}
                   </div>
-                )) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <Zap className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                    <p>暂无数据</p>
-                  </div>
-                )}
-              </div>
+                </div>
+              )) : (
+                <div className="text-center py-12 text-gray-500">
+                  <Award className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                  <p className="text-lg font-medium">暂无数据</p>
+                  <p className="text-sm mt-2">
+                    {rankingDimension === 'shares'
+                      ? '当前数据中没有转发量信息，请尝试其他维度'
+                      : '搜索关键词并分析文章后，这里将显示排行榜数据'
+                    }
+                  </p>
+                </div>
+              )}
             </div>
+
+            {/* 数据统计信息 */}
+            {rankingData.length > 0 && (
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <div className="flex items-center justify-between text-sm text-gray-500">
+                  <span>显示 {rankingData.length} 篇文章</span>
+                  <span>基于 {articles.length} 篇分析文章</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 选题洞察 */}

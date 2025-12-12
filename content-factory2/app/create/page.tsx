@@ -49,6 +49,108 @@ import {
 import { HistoryManager, DraftManager } from '@/lib/content-management'
 import { IMAGE_STYLES, IMAGE_RATIOS, COVER_TEMPLATES } from '@/lib/content-cache'
 
+// 文章结构类型配置
+const ARTICLE_STRUCTURE_TYPES = [
+  { value: 'auto', label: '智能选择', description: 'AI自动选择最适合的结构类型' },
+  { value: 'checklist', label: '清单体', description: '简单直接，易出流量，适合干货总结和避坑指南' },
+  { value: 'knowledge_parallel', label: '干货体-并列式', description: '多观点横向排列，适合"多方法/多维度"内容' },
+  { value: 'knowledge_progressive', label: '干货体-递进式', description: '层层深入逻辑，适合深度分析' },
+  { value: 'story', label: '故事体', description: '情感共鸣，易塑造IP，注重画面感和代入感' },
+  { value: 'viewpoint', label: '观点体（SCQA）', description: '犀利独到，适合热点评论和争议话题' },
+  { value: 'viewpoint_staircase', label: '观点体（爬楼梯）', description: '观点逐步升级，引导情绪上台阶' },
+  { value: 'assorted', label: '拼盘式结构', description: '素材丰富多样，适合合集类内容' }
+]
+
+// 获取文章结构类型的提示词模板
+const getStructurePromptTemplate = (structureType: string): string => {
+  const templates: Record<string, string> = {
+    'auto': '请根据内容特点和目标读者，自动选择最适合的公众号文章结构。',
+
+    'checklist': `
+请采用**清单体结构**创作，要求：
+1. 开头：明确说明清单主题和核心价值（3-5句话）
+2. 主体：以"1、2、3……"数字列点形式展开，每个要点包含：
+   - 分点明确：用数字/符号引导（如"✅ 技巧1""⚠️ 误区2"）
+   - 具体说明（2-3句话）搭配案例/解释
+   - 视觉强化：关键信息加粗/变色
+3. 结尾：总结要点，给出行动建议
+4. 排版要点：每段不超过3行，避免密集文字
+5. 风格：条理清晰，信息密度适中，易于快速阅读
+6. 控制数量：分点建议3-7个，避免读者疲劳`,
+
+    'knowledge_parallel': `
+请采用**干货体-并列式结构**创作，要求：
+1. 开头：提出核心问题或主题，引出多个观点
+2. 主体：按"观点1+案例1+小结+观点2+案例2+小结……"结构：
+   - 每个观点独立成段，逻辑并列
+   - 案例具体：用"素人案例+细节"增强共鸣
+   - 每个观点搭配真实案例或数据支撑
+3. 排版要点：小标题分层，段落间空1行，避免"文字墙"
+4. 结尾：总结观点之间的关系，给出综合建议
+5. 风格：逻辑严谨，论证充分，专业性强`,
+
+    'knowledge_progressive': `
+请采用**干货体-递进式结构**创作，要求：
+1. 开头：明确概念定义或问题现状（是什么）
+2. 主体：按"现状分析→原因拆解→解决方案"递进：
+   - 深入分析问题的根本原因（为什么）
+   - 逐步给出解决方案的层次和步骤（怎么办）
+   - 每个层次都要建立在前一层次基础上
+3. 排版要点：用过渡句连接段落，避免内容断层
+4. 结尾：总结解决路径，给出可操作的建议
+5. 风格：深度思考，逻辑严密，层层递进`,
+
+    'story': `
+请采用**故事体结构**创作，要求：
+1. 开头：制造冲突或悬念，快速吸引注意力
+   - 痛点前置：开头3句话制造冲突
+2. 主体：按"起因→经过→转折→结果"推进：
+   - 场景化开头：用短句描写具体场景
+   - 展开具体细节，营造画面感和代入感
+   - 描述挑战、挣扎和突破的关键时刻
+   - 对话穿插：用"「」"标注对话增强真实性
+3. 结尾：升华情绪，提炼感悟或金句
+4. 风格：情感真挚，画面感强，有温度的叙事
+5. 观点隐藏：通过故事自然传递观点，而非生硬说教`,
+
+    'viewpoint': `
+请采用**观点体(SCQA结构)**创作，要求：
+1. 情境(Situation)：铺垫背景，建立共识
+2. 冲突(Complication)：提出矛盾，引发关注
+3. 疑问(Question)：引发思考，制造悬念
+4. 答案(Answer)：给出观点，提供价值
+5. 排版要点：金句突出，用加粗/独立段落
+   数据支撑：插入行业报告/调研数据增强说服力
+6. 风格：条理清晰，逻辑严密，适合分析类内容
+7. 观点前置：开头亮明核心立场，避免读者猜谜
+8. 避免偏激：用"虽然…但是…"平衡观点`,
+
+    'viewpoint_staircase': `
+请采用**观点体(爬楼梯结构)**创作，要求：
+1. 起点：现状描述或问题引入
+2. 楼梯1：第一层观点/情节发展
+3. 楼梯2：第二层深入/情节推进
+4. 楼梯3：更高层次/情节高潮
+5. 终点：总结升华/结局收尾
+6. 每一层都要比前一层更有深度或强度
+7. 风格：逐步升级，层层深入，引导情绪`,
+
+    'assorted': `
+请采用**拼盘式结构**创作，要求：
+1. 开头：明确主题方向，建立统一框架
+2. 主体：按时间、空间、类型等关键词串联：
+   - 多个素材模块，形式多样
+   - 每个模块相对独立但服务于统一主题
+   - 用过渡句自然连接不同模块
+3. 排版要点：手机友好，字号15-16px，行间距1.75
+   - 广告适配：预留广告位（中部600字后、底部）
+4. 结尾：整合各模块要点，给出整体建议
+5. 风格：内容丰富，形式多样，信息量大`
+  }
+
+  return templates[structureType] || templates['auto']
+}
+
 // 格式化时间
 const formatTime = (date: Date | string) => {
   const dateObj = typeof date === 'string' ? new Date(date) : date
@@ -107,7 +209,7 @@ function CreatePageContent() {
   const [customTopic, setCustomTopic] = useState('')
   const [contentLength, setContentLength] = useState('800-1000')
   const [writingStyle, setWritingStyle] = useState('professional')
-  const [imageCount, setImageCount] = useState('3')
+  const [imageCount, setImageCount] = useState('1')
   const [imageStyle, setImageStyle] = useState('auto')
   const [imageRatio, setImageRatio] = useState('4:3')
   const [hasCover, setHasCover] = useState(false) // 是否包含封面图
@@ -152,6 +254,9 @@ function CreatePageContent() {
   const [creationMode, setCreationMode] = useState<'original' | 'reference'>('original')
   const [originalInspiration, setOriginalInspiration] = useState('')
   const [expandedArticle, setExpandedArticle] = useState<string | null>(null)
+
+  // 文章结构类型状态（仅在对标模式下使用）
+  const [articleStructure, setArticleStructure] = useState<string>('auto')
 
   // 加载草稿 - 只在客户端执行
   useEffect(() => {
@@ -723,6 +828,7 @@ function CreatePageContent() {
         creationMode,
         originalInspiration: creationMode === 'original' ? originalInspiration : undefined,
         referenceArticles: creationMode === 'reference' ? selectedArticles : [],
+        articleStructure: creationMode === 'reference' ? articleStructure : 'auto', // 文章结构类型
         isBatch: enableBatch && batchCount > 1,
         count: batchCount,
         // 增强的二创分析数据
@@ -1806,6 +1912,33 @@ function CreatePageContent() {
                       {selectedArticles.length > 0 && (
                         <span className="block mt-1">已选择 {selectedArticles.length} 篇对标文章作为参考</span>
                       )}
+                    </p>
+                  </div>
+                )}
+
+                {/* 文章结构类型选择器 */}
+                {creationMode === 'reference' && (
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <AlignLeft className="w-4 h-4 inline mr-1" />
+                      文章结构类型
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={articleStructure}
+                        onChange={(e) => setArticleStructure(e.target.value)}
+                        className="w-full p-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white"
+                      >
+                        {ARTICLE_STRUCTURE_TYPES.map((type) => (
+                          <option key={type.value} value={type.value}>
+                            {type.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {ARTICLE_STRUCTURE_TYPES.find(type => type.value === articleStructure)?.description}
                     </p>
                   </div>
                 )}

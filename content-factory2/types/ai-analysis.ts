@@ -128,6 +128,7 @@ export interface CreationParams {
   creationMode?: 'original' | 'reference' // 新增：创作模式
   originalInspiration?: string // 新增：原创灵感
   referenceArticles?: any[] // 新增：对标文章
+  articleStructure?: string // 新增：文章结构类型
 }
 
 // 文章历史记录
