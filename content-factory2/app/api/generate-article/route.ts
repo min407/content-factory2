@@ -19,7 +19,9 @@ export async function POST(request: NextRequest) {
       count,
       hasCover,
       coverRatio,
-      imagePromptContext
+      imagePromptContext,
+      benchmarkReference, // 新增：对标选题的参考内容
+      enhancedAnalysis // 增强的二创分析数据
     } = await request.json()
 
     if (!topic) {
@@ -43,7 +45,9 @@ export async function POST(request: NextRequest) {
       articleStructure,
       hasCover,
       coverRatio,
-      imagePromptContext
+      imagePromptContext,
+      benchmarkReference, // 传递对标选题的参考内容
+      enhancedAnalysis // 传递增强分析数据
     }
 
     let result

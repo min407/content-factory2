@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useState } from 'react'
 import {
   LayoutDashboard,
   Search,
@@ -13,7 +14,12 @@ import {
   Zap,
   User,
   LogIn,
-  LogOut
+  LogOut,
+  Target,
+  Database,
+  TrendingUp,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react'
 import { useAuth, AuthStatus } from '@/lib/auth-context'
 
@@ -45,19 +51,42 @@ const menuItems = [
     icon: Send,
     description: '文章管理与发布',
     requireAuth: true
-  },
-  {
-    href: '/api-settings',
-    label: 'API配置',
-    icon: Settings,
-    description: 'API密钥管理',
-    requireAuth: true
-  },
+  }
 ]
+
+// 对标分析独立菜单组
+const targetAnalysisMenu = {
+  href: '/target',
+  label: '对标分析',
+  icon: Target,
+  description: '爆款文章发现与对标',
+  requireAuth: true,
+  children: [
+    {
+      href: '/target/analysis',
+      label: '智能对标分析',
+      icon: Target,
+      description: '发现爆款文章和优质作者'
+    },
+    {
+      href: '/target/library',
+      label: '对标库管理',
+      icon: Database,
+      description: '管理收藏的文章和账号'
+    },
+    {
+      href: '/target/tracking',
+      label: '对标追踪',
+      icon: TrendingUp,
+      description: '监控对标账号动态'
+    }
+  ]
+}
 
 export function Sidebar() {
   const pathname = usePathname()
   const { isAuthenticated, user, logout, isLoading } = useAuth()
+  const [isTargetMenuExpanded, setIsTargetMenuExpanded] = useState(false)
 
   return (
     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
@@ -77,7 +106,106 @@ export function Sidebar() {
       {/* 导航菜单 */}
       <nav className="flex-1 p-4">
         <ul className="space-y-2">
-          {menuItems
+          {/* 仪表盘 */}
+          {(() => {
+            const dashboardItem = menuItems[0]
+            const Icon = dashboardItem.icon
+            const isActive = pathname === dashboardItem.href ||
+                           (dashboardItem.href !== '/' && pathname.startsWith(dashboardItem.href))
+
+            return (
+              <li key={dashboardItem.href}>
+                <Link
+                  href={dashboardItem.href}
+                  className={`
+                    flex items-center space-x-3 px-4 py-3 rounded-lg transition-all
+                    ${isActive
+                      ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
+                      : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 border-l-4 border-transparent'
+                    }
+                  `}
+                >
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium">{dashboardItem.label}</p>
+                    <p className={`text-xs ${isActive ? 'text-blue-500' : 'text-gray-500'}`}>
+                      {dashboardItem.description}
+                    </p>
+                  </div>
+                </Link>
+              </li>
+            )
+          })()}
+
+          {/* 对标分析独立菜单 - 第二个 */}
+          {isAuthenticated && (() => {
+            const isActive = pathname.startsWith('/target')
+            const isChildActive = targetAnalysisMenu.children.some(child =>
+              pathname === child.href || (child.href !== '/' && pathname.startsWith(child.href))
+            )
+
+            return (
+              <li>
+                <button
+                  onClick={() => setIsTargetMenuExpanded(!isTargetMenuExpanded)}
+                  className={`
+                    w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all
+                    ${isActive || isChildActive
+                      ? 'bg-gradient-to-r from-purple-50 to-pink-50 text-purple-600 border-l-4 border-purple-600'
+                      : 'text-gray-700 hover:bg-purple-50 hover:text-purple-900 border-l-4 border-transparent'
+                    }
+                  `}
+                >
+                  <targetAnalysisMenu.icon className="w-5 h-5 flex-shrink-0" />
+                  <div className="flex-1 text-left">
+                    <p className="font-medium">{targetAnalysisMenu.label}</p>
+                    <p className={`text-xs ${isActive || isChildActive ? 'text-purple-500' : 'text-gray-500'}`}>
+                      {targetAnalysisMenu.description}
+                    </p>
+                  </div>
+                  {isTargetMenuExpanded ? (
+                    <ChevronDown className="w-4 h-4 flex-shrink-0" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 flex-shrink-0" />
+                  )}
+                </button>
+
+                {/* 子菜单 - 展开时显示 */}
+                {isTargetMenuExpanded && (
+                  <ul className="ml-8 mt-2 space-y-1">
+                    {targetAnalysisMenu.children.map((child) => {
+                      const ChildIcon = child.icon
+                      const isChildActive = pathname === child.href ||
+                                         (child.href !== '/' && pathname.startsWith(child.href))
+
+                      return (
+                        <li key={child.href}>
+                          <Link
+                            href={child.href}
+                            className={`
+                              flex items-center space-x-2 px-3 py-2 rounded-lg transition-all text-sm
+                              ${isChildActive
+                                ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600'
+                                : 'text-gray-600 hover:bg-purple-50 hover:text-purple-900 border-l-4 border-transparent'
+                              }
+                            `}
+                          >
+                            <ChildIcon className="w-4 h-4 flex-shrink-0" />
+                            <div>
+                              <p className="font-medium">{child.label}</p>
+                            </div>
+                          </Link>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </li>
+            )
+          })()}
+
+          {/* 其他菜单项 - 选题分析、内容创作、发布管理 */}
+          {menuItems.slice(1)
             .filter(item => !item.requireAuth || isAuthenticated)
             .map((item) => {
             const Icon = item.icon
@@ -142,6 +270,15 @@ export function Sidebar() {
                   </div>
                 </div>
               </div>
+
+              {/* API配置 */}
+              <Link
+                href="/api-settings"
+                className="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition-all border-l-4 border-transparent"
+              >
+                <Settings className="w-5 h-5 flex-shrink-0" />
+                <span className="font-medium">API 配置</span>
+              </Link>
 
               {/* 登出按钮 */}
               <button

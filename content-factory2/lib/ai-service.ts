@@ -597,7 +597,34 @@ export async function generateSingleArticle(params: CreationParams): Promise<Gen
   let modeSpecificPrompt = ''
   let referenceContent = ''
 
-  if (creationMode === 'reference' && referenceArticles.length > 0) {
+  // 优先检查是否有对标选题的参考内容
+  if (params.benchmarkReference && params.benchmarkReference.content) {
+    // 使用对标选题的文章内容作为主要参考
+    const { title, content, author, reads } = params.benchmarkReference
+
+    referenceContent = `
+**【核心任务】基于对标分析选题进行内容创作，参考以下爆款文章的写作方式：**
+
+**【参考爆款文章】**：
+**标题**：${title}
+**作者**：${author}
+**阅读量**：${reads}+
+**内容**：${content.substring(0, 4000)}${content.length > 4000 ? '...' : ''}
+
+**【创作要求】**
+1. **结构学习**：分析爆款文章的结构安排、段落布局、论证方式
+2. **语言风格**：学习文章的语言表达方式、用词习惯、语气风格
+3. **观点角度**：理解文章切入角度和观点提炼方式
+4. **互动技巧**：学习如何引发读者共鸣和互动的表达技巧
+
+**【卷儿化创作】**
+- 结合爆款文章的成功要素，用卷儿的人设和经历重新表达
+- 保持爆款文章的核心观点和结构，但用卷儿的真实经历替换案例
+- 采用"陪伴式、拆解式"语言，避免说教感
+- 融入卷儿的思考和感悟，让内容更有个人特色
+
+`
+  } else if (creationMode === 'reference' && referenceArticles.length > 0) {
     // 对标模式 - 基于对标文章内容进行卷儿化改写
     const mainArticle = referenceArticles[0] // 以第一篇对标文章为主要改写对象
     const fullContent = mainArticle.content || mainArticle.summary || ''

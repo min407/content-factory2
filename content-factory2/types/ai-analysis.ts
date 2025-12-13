@@ -132,6 +132,13 @@ export interface CreationParams {
   hasCover?: boolean // 新增：是否包含封面图
   coverRatio?: string // 新增：封面图片比例
   imagePromptContext?: any // 新增：图片提示词上下文
+  benchmarkReference?: { // 新增：对标选题的参考内容
+    title: string
+    content: string
+    author: string
+    reads: number
+  }
+  enhancedAnalysis?: any // 新增：增强的二创分析数据
 }
 
 // 文章历史记录

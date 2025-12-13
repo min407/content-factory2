@@ -38,6 +38,14 @@ import { useSearchParams } from 'next/navigation'
 import DashboardLayout from '@/components/DashboardLayout'
 import { withAuth } from '@/lib/auth-context'
 
+// 格式化数字函数
+const formatNumber = (num: number): string => {
+  if (num >= 10000) {
+    return (num / 10000).toFixed(1) + 'w'
+  }
+  return num.toString()
+}
+
 // 导入新的类型和服务
 import { TopicWithHistory, GeneratedArticle } from '@/types/ai-analysis'
 import {
@@ -191,19 +199,69 @@ function CreatePageContent() {
   const [isMounted, setIsMounted] = useState(false)
 
   // 选题相关状态
-  const [selectedSource, setSelectedSource] = useState<'insights' | 'custom'>('insights')
+  const [selectedSource, setSelectedSource] = useState<'insights' | 'benchmark' | 'custom'>('insights')
   const [selectedTopic, setSelectedTopic] = useState<TopicWithHistory | null>(null)
   const [topics, setTopics] = useState<TopicWithHistory[]>([])
   const [filteredTopics, setFilteredTopics] = useState<TopicWithHistory[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
+
+  // 对标选题相关状态
+  const [creationTopics, setCreationTopics] = useState<any[]>([])
+  const [selectedCreationTopic, setSelectedCreationTopic] = useState<any | null>(null)
+  const [isSyncingCreationTopics, setIsSyncingCreationTopics] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
   const [loadingDraft, setLoadingDraft] = useState(false)
+
+  // 获取对标选题
+  const fetchCreationTopics = useCallback(async () => {
+    try {
+      // 先尝试获取所有选题，看看是否有数据
+      const response = await fetch('/api/creation/sync-benchmark-topics')
+      const result = await response.json()
+      if (result.success) {
+        console.log('获取到的所有选题:', result.data)
+
+        // 过滤出benchmark类型的选题
+        const benchmarkTopics = result.data.filter((topic: any) => topic.source_type === 'benchmark')
+        console.log('过滤后的对标选题:', benchmarkTopics)
+        console.log('对标选题数量:', benchmarkTopics.length)
+
+        setCreationTopics(benchmarkTopics)
+      } else {
+        console.error('获取对标选题失败:', result.message)
+      }
+    } catch (error) {
+      console.error('获取对标选题失败:', error)
+    }
+  }, [])
+
+  // 刷新对标选题
+  const handleRefreshCreationTopics = useCallback(async () => {
+    setIsSyncingCreationTopics(true)
+    try {
+      await fetchCreationTopics()
+    } finally {
+      setIsSyncingCreationTopics(false)
+    }
+  }, [fetchCreationTopics])
+
+  // 调试selectedCreationTopic状态
+  useEffect(() => {
+    console.log('🐛 [调试] selectedCreationTopic状态变化:', selectedCreationTopic)
+  }, [selectedCreationTopic])
+
+  // 调试selectedSource状态
+  useEffect(() => {
+    console.log('🐛 [调试] selectedSource状态变化:', selectedSource)
+  }, [selectedSource])
 
   // 确保组件在客户端挂载后才执行相关代码
   useEffect(() => {
     setIsMounted(true)
-  }, [])
+    // 初始化时获取对标选题
+    fetchCreationTopics()
+  }, []) // 移除fetchCreationTopics依赖，只在组件挂载时执行一次
 
   // 创作参数状态
   const [customTopic, setCustomTopic] = useState('')
@@ -764,18 +822,42 @@ function CreatePageContent() {
 
   // 生成文章
   const handleGenerate = useCallback(async () => {
-    if (selectedSource === 'insights' && !selectedTopic) {
+    // 实时获取当前状态，避免闭包问题
+    const currentSelectedCreationTopic = selectedCreationTopic
+    const currentSelectedSource = selectedSource
+    const currentSelectedTopic = selectedTopic
+    const currentCustomTopic = customTopic
+
+    console.log('🐛 [调试] handleGenerate开始 - 当前状态:', {
+      currentSelectedCreationTopic,
+      currentSelectedSource,
+      currentSelectedTopic,
+      currentCustomTopic: currentCustomTopic.trim()
+    })
+
+    if (currentSelectedSource === 'insights' && !currentSelectedTopic) {
       setError('请选择一个选题')
       return
     }
-    if (selectedSource === 'custom' && !customTopic.trim()) {
+    if (currentSelectedSource === 'benchmark' && !currentSelectedCreationTopic) {
+      console.log('🐛 [调试] 对标选题验证失败:', {
+        currentSelectedSource,
+        currentSelectedCreationTopic,
+        originalSelectedCreationTopic: selectedCreationTopic
+      })
+      setError('请选择一个对标选题')
+      return
+    }
+    if (currentSelectedSource === 'custom' && !currentCustomTopic.trim()) {
       setError('请输入自定义选题')
       return
     }
 
-    // 构建增强的二创分析数据
+    // 构建增强的二创分析数据 - 使用局部变量避免闭包问题
     const enhancedAnalysisData = {
-      topic: selectedTopic || { title: customTopic, description: '' },
+      topic: currentSelectedSource === 'insights' ? currentSelectedTopic :
+            currentSelectedSource === 'benchmark' ? currentSelectedCreationTopic :
+            { title: currentCustomTopic, description: '' },
       referenceArticles: selectedArticles.map(article => ({
         title: article.title,
         summary: article.summary,
@@ -789,20 +871,34 @@ function CreatePageContent() {
         writingStyle: analyzeWritingStyle(article.content), // 分析写作风格
         structure: analyzeContentStructure(article.content) // 分析内容结构
       })),
-      creationStrategy: determineCreationStrategy(selectedTopic, selectedArticles)
+      // 添加对标选题的参考内容 - 使用局部变量
+      benchmarkReference: currentSelectedCreationTopic && currentSelectedSource === 'benchmark' ? {
+        title: currentSelectedCreationTopic.referenceTitle,
+        author: currentSelectedCreationTopic.referenceAuthor,
+        reads: currentSelectedCreationTopic.referenceReads,
+        content: currentSelectedCreationTopic.referenceContent,
+        keyPoints: currentSelectedCreationTopic.referenceContent ? extractKeyPoints(currentSelectedCreationTopic.referenceContent) : [],
+        writingStyle: currentSelectedCreationTopic.referenceContent ? analyzeWritingStyle(currentSelectedCreationTopic.referenceContent) : {},
+        structure: currentSelectedCreationTopic.referenceContent ? analyzeContentStructure(currentSelectedCreationTopic.referenceContent) : {}
+      } : null,
+      creationStrategy: determineCreationStrategy(currentSelectedTopic, selectedArticles)
     }
 
     // 验证创作模式要求
     console.log('🔍 [创作验证] 当前模式:', creationMode)
     console.log('🔍 [创作验证] 原创灵感:', originalInspiration.trim())
     console.log('🔍 [创作验证] 对标文章数量:', selectedArticles.length)
+    console.log('🔍 [创作验证] 对标选题存在:', !!currentSelectedCreationTopic)
+
+    // 如果选择了对标选题，则认为已经满足对标模式要求
+    const hasReferenceContent = selectedArticles.length > 0 || currentSelectedCreationTopic
 
     if (creationMode === 'original' && !originalInspiration.trim()) {
       setError('原创模式请输入原创灵感内容')
       return
     }
-    if (creationMode === 'reference' && selectedArticles.length === 0) {
-      setError('对标模式请选择至少一篇对标文章')
+    if (creationMode === 'reference' && !hasReferenceContent) {
+      setError('对标模式请选择至少一篇对标文章，或选择对标选题')
       return
     }
 
@@ -821,8 +917,20 @@ function CreatePageContent() {
     setSuccess(null)
 
     try {
+      console.log('🐛 [调试] 开始生成文章:', {
+        selectedSource: currentSelectedSource,
+        selectedCreationTopic: currentSelectedCreationTopic
+      })
+
+      // 确定选题和参考内容 - 使用局部变量避免闭包问题
+      const finalTopic = currentSelectedSource === 'insights' ? currentSelectedTopic :
+                         currentSelectedSource === 'benchmark' ? currentSelectedCreationTopic :
+                         { title: currentCustomTopic, description: '' }
+
+      console.log('🐛 [调试] 使用的finalTopic:', finalTopic)
+
       const requestBody = {
-        topic: selectedTopic!,
+        topic: finalTopic,
         length: contentLength,
         style: writingStyle,
         imageCount: parseInt(imageCount),
@@ -837,8 +945,15 @@ function CreatePageContent() {
         articleStructure: creationMode === 'reference' ? articleStructure : 'auto', // 文章结构类型
         isBatch: enableBatch && batchCount > 1,
         count: batchCount,
-        // 增强的二创分析数据
-        enhancedAnalysis: creationMode === 'reference' ? enhancedAnalysisData : null
+        // 增强的二创分析数据 - 使用局部变量
+        enhancedAnalysis: enhancedAnalysisData,
+        // 专门为对标选题添加参考内容 - 使用局部变量
+        benchmarkReference: currentSelectedCreationTopic && currentSelectedSource === 'benchmark' ? {
+          title: currentSelectedCreationTopic.referenceTitle,
+          content: currentSelectedCreationTopic.referenceContent,
+          author: currentSelectedCreationTopic.referenceAuthor,
+          reads: currentSelectedCreationTopic.referenceReads
+        } : null
       }
 
       const response = await fetch('/api/generate-article', {
@@ -895,6 +1010,7 @@ function CreatePageContent() {
   }, [
     selectedSource,
     selectedTopic,
+    selectedCreationTopic,
     customTopic,
     contentLength,
     writingStyle,
@@ -1401,7 +1517,7 @@ function CreatePageContent() {
                   name="source"
                   value="insights"
                   checked={selectedSource === 'insights'}
-                  onChange={(e) => setSelectedSource(e.target.value as 'insights' | 'custom')}
+                  onChange={(e) => setSelectedSource(e.target.value as 'insights' | 'benchmark' | 'custom')}
                   className="mr-3"
                 />
                 <div className="flex-1">
@@ -1421,9 +1537,31 @@ function CreatePageContent() {
                 <input
                   type="radio"
                   name="source"
+                  value="benchmark"
+                  checked={selectedSource === 'benchmark'}
+                  onChange={(e) => setSelectedSource(e.target.value as 'insights' | 'benchmark' | 'custom')}
+                  className="mr-3"
+                />
+                <div className="flex-1">
+                  <p className="font-medium">从对标分析选择</p>
+                  <p className="text-sm text-gray-500">基于对标文章分析 ({creationTopics.length}个可选)</p>
+                </div>
+                <button
+                  onClick={handleRefreshCreationTopics}
+                  disabled={isSyncingCreationTopics}
+                  className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg disabled:opacity-50"
+                  title="刷新对标选题"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isSyncingCreationTopics ? 'animate-spin' : ''}`} />
+                </button>
+              </label>
+              <label className="flex items-center p-3 rounded-lg border cursor-pointer hover:bg-gray-50">
+                <input
+                  type="radio"
+                  name="source"
                   value="custom"
                   checked={selectedSource === 'custom'}
-                  onChange={(e) => setSelectedSource(e.target.value as 'insights' | 'custom')}
+                  onChange={(e) => setSelectedSource(e.target.value as 'insights' | 'benchmark' | 'custom')}
                   className="mr-3"
                 />
                 <div>
@@ -1439,11 +1577,19 @@ function CreatePageContent() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900 flex items-center">
                 <Target className="w-5 h-5 mr-2 text-blue-500" />
-                {selectedSource === 'insights' ? '可用选题' : '自定义选题'}
+                {selectedSource === 'insights' ? '可用选题' : selectedSource === 'benchmark' ? '对标选题' : '自定义选题'}
               </h2>
-              {selectedSource === 'insights' && selectedTopic && (
+              {(selectedSource === 'insights' && selectedTopic) && (
                 <button
                   onClick={handleTopicClear}
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                >
+                  清空选择
+                </button>
+              )}
+              {selectedSource === 'benchmark' && selectedCreationTopic && (
+                <button
+                  onClick={() => setSelectedCreationTopic(null)}
                   className="text-xs text-gray-500 hover:text-gray-700"
                 >
                   清空选择
@@ -1535,6 +1681,97 @@ function CreatePageContent() {
                   )}
                 </div>
               </>
+            ) : selectedSource === 'benchmark' ? (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                <div className="mb-2 text-sm text-gray-500">
+                  🐛 [调试] 当前creationTopics数量: {creationTopics.length}
+                  {creationTopics.length > 0 && (
+                    <span> - 第一个选题标题: {creationTopics[0]?.title}</span>
+                  )}
+                </div>
+                {creationTopics.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Target className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <p className="font-medium">暂无对标选题</p>
+                    <p className="text-sm text-gray-400 mt-1">请先在对标库中分析并同步文章</p>
+                  </div>
+                ) : (
+                  creationTopics.map((topic) => {
+                    console.log('🐛 [调试] 渲染选题:', topic)
+                    const isSelected = selectedCreationTopic?.id === topic.id
+                    return (
+                    <div
+                      key={topic.id}
+                      className={`flex items-start p-4 border rounded-lg cursor-pointer transition-colors ${
+                        isSelected
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:bg-purple-50'
+                      }`}
+                      onClick={() => {
+                        console.log('🐛 [调试] div被点击:', topic.title)
+                        // 直接触发选择逻辑
+                        const newSelection = {
+                          ...topic,
+                          referenceContent: topic.content || topic.source_content || '',
+                          referenceTitle: topic.source_title || topic.title,
+                          referenceAuthor: topic.source_author || '未知作者',
+                          referenceReads: topic.source_reads || 0
+                        }
+                        console.log('🐛 [调试] onClick - 准备设置selectedCreationTopic:', newSelection)
+                        setSelectedCreationTopic(newSelection)
+                      }}
+                    >
+                      {/* 自定义选中状态指示器 */}
+                      <div className="mt-1 mr-3">
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-500'
+                            : 'border-gray-300'
+                        }`}>
+                          {isSelected && (
+                            <div className="w-2 h-2 bg-white rounded-full"></div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900">{topic.title}</p>
+                        <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                          <span className="flex items-center">
+                            <div className="w-2 h-2 bg-green-400 rounded-full mr-1"></div>
+                            来源: {topic.source_type === 'benchmark' ? '对标分析' : '其他'}
+                          </span>
+                          <span>
+                            创建时间: {new Date(topic.created_at * 1000).toLocaleDateString()}
+                          </span>
+                          {topic.source_reads && (
+                            <span>
+                              原文阅读: {formatNumber(topic.source_reads)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {topic.status === 'pending' && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                              待创作
+                            </span>
+                          )}
+                          {topic.content && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                              </svg>
+                              包含完整参考内容
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    )
+                  })
+                )}
+              </div>
             ) : (
               <textarea
                 value={customTopic}
@@ -2165,7 +2402,11 @@ function CreatePageContent() {
             {/* 生成按钮 */}
             <button
               onClick={handleGenerate}
-              disabled={isGenerating || (selectedSource === 'insights' ? !selectedTopic : !customTopic.trim())}
+              disabled={isGenerating || (
+                selectedSource === 'insights' ? !selectedTopic :
+                selectedSource === 'benchmark' ? !selectedCreationTopic :
+                !customTopic.trim()
+              )}
               className="w-full mt-6 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed flex items-center justify-center"
             >
               {isGenerating ? (
