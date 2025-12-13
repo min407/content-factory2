@@ -220,12 +220,8 @@ function CreatePageContent() {
       const response = await fetch('/api/creation/sync-benchmark-topics')
       const result = await response.json()
       if (result.success) {
-        console.log('获取到的所有选题:', result.data)
-
-        // 过滤出benchmark类型的选题
+            // 过滤出benchmark类型的选题
         const benchmarkTopics = result.data.filter((topic: any) => topic.source_type === 'benchmark')
-        console.log('过滤后的对标选题:', benchmarkTopics)
-        console.log('对标选题数量:', benchmarkTopics.length)
 
         setCreationTopics(benchmarkTopics)
       } else {
@@ -246,16 +242,7 @@ function CreatePageContent() {
     }
   }, [fetchCreationTopics])
 
-  // 调试selectedCreationTopic状态
-  useEffect(() => {
-    console.log('🐛 [调试] selectedCreationTopic状态变化:', selectedCreationTopic)
-  }, [selectedCreationTopic])
-
-  // 调试selectedSource状态
-  useEffect(() => {
-    console.log('🐛 [调试] selectedSource状态变化:', selectedSource)
-  }, [selectedSource])
-
+  
   // 确保组件在客户端挂载后才执行相关代码
   useEffect(() => {
     setIsMounted(true)
@@ -269,8 +256,8 @@ function CreatePageContent() {
   const [writingStyle, setWritingStyle] = useState('professional')
   const [imageCount, setImageCount] = useState('1')
   const [imageStyle, setImageStyle] = useState('auto')
-  const [imageRatio, setImageRatio] = useState('4:3')
-  const [hasCover, setHasCover] = useState(false) // 是否包含封面图
+  const [imageRatio, setImageRatio] = useState('16:9')
+  const [hasCover, setHasCover] = useState(true) // 默认包含封面图
 
   // 批量创作状态
   const [batchCount, setBatchCount] = useState(1)
@@ -363,7 +350,7 @@ function CreatePageContent() {
               if (params.style) setWritingStyle(params.style)
               if (params.imageCount) setImageCount(params.imageCount)
               if (params.imageStyle) setImageStyle(params.imageStyle)
-              if (params.imageRatio) setImageRatio(params.imageRatio)
+              if (params.imageRatio) setImageRatio(params.imageRatio) // 如果有保存的比例则使用，否则保持默认16:9
               if (params.hasCover !== undefined) setHasCover(params.hasCover) // 恢复封面选项
             }
 
@@ -828,23 +815,12 @@ function CreatePageContent() {
     const currentSelectedTopic = selectedTopic
     const currentCustomTopic = customTopic
 
-    console.log('🐛 [调试] handleGenerate开始 - 当前状态:', {
-      currentSelectedCreationTopic,
-      currentSelectedSource,
-      currentSelectedTopic,
-      currentCustomTopic: currentCustomTopic.trim()
-    })
-
+  
     if (currentSelectedSource === 'insights' && !currentSelectedTopic) {
       setError('请选择一个选题')
       return
     }
     if (currentSelectedSource === 'benchmark' && !currentSelectedCreationTopic) {
-      console.log('🐛 [调试] 对标选题验证失败:', {
-        currentSelectedSource,
-        currentSelectedCreationTopic,
-        originalSelectedCreationTopic: selectedCreationTopic
-      })
       setError('请选择一个对标选题')
       return
     }
@@ -885,11 +861,7 @@ function CreatePageContent() {
     }
 
     // 验证创作模式要求
-    console.log('🔍 [创作验证] 当前模式:', creationMode)
-    console.log('🔍 [创作验证] 原创灵感:', originalInspiration.trim())
-    console.log('🔍 [创作验证] 对标文章数量:', selectedArticles.length)
-    console.log('🔍 [创作验证] 对标选题存在:', !!currentSelectedCreationTopic)
-
+    
     // 如果选择了对标选题，则认为已经满足对标模式要求
     const hasReferenceContent = selectedArticles.length > 0 || currentSelectedCreationTopic
 
@@ -902,8 +874,7 @@ function CreatePageContent() {
       return
     }
 
-    console.log('✅ [创作验证] 验证通过，开始创作')
-
+    
     // 为图片生成准备内容关键词（用于生成相关图片）
     const imagePromptContext = creationMode === 'original'
       ? originalInspiration
@@ -917,18 +888,13 @@ function CreatePageContent() {
     setSuccess(null)
 
     try {
-      console.log('🐛 [调试] 开始生成文章:', {
-        selectedSource: currentSelectedSource,
-        selectedCreationTopic: currentSelectedCreationTopic
-      })
-
+  
       // 确定选题和参考内容 - 使用局部变量避免闭包问题
       const finalTopic = currentSelectedSource === 'insights' ? currentSelectedTopic :
                          currentSelectedSource === 'benchmark' ? currentSelectedCreationTopic :
                          { title: currentCustomTopic, description: '' }
 
-      console.log('🐛 [调试] 使用的finalTopic:', finalTopic)
-
+      
       const requestBody = {
         topic: finalTopic,
         length: contentLength,
@@ -937,7 +903,6 @@ function CreatePageContent() {
         imageStyle,
         imageRatio,
         hasCover, // 添加封面选项
-        coverRatio: '2.35:1', // 封面比例固定为2.35:1
         imagePromptContext, // 添加图片生成上下文，提高相关性
         creationMode,
         originalInspiration: creationMode === 'original' ? originalInspiration : undefined,
@@ -1338,8 +1303,7 @@ function CreatePageContent() {
           imageStyle,
           imageRatio,
           topic: selectedTopic || customTopic,
-          hasCover, // 添加封面选项到参数
-          coverRatio: '2.35:1'
+          hasCover // 添加封面选项到参数
         },
         // 更新字数和阅读时间
         wordCount: currentArticle.wordCount || countWords(currentArticle.content),
@@ -1683,13 +1647,7 @@ function CreatePageContent() {
               </>
             ) : selectedSource === 'benchmark' ? (
               <div className="space-y-3 max-h-96 overflow-y-auto">
-                <div className="mb-2 text-sm text-gray-500">
-                  🐛 [调试] 当前creationTopics数量: {creationTopics.length}
-                  {creationTopics.length > 0 && (
-                    <span> - 第一个选题标题: {creationTopics[0]?.title}</span>
-                  )}
-                </div>
-                {creationTopics.length === 0 ? (
+                  {creationTopics.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                       <Target className="w-8 h-8 text-gray-400" />
@@ -1698,8 +1656,7 @@ function CreatePageContent() {
                     <p className="text-sm text-gray-400 mt-1">请先在对标库中分析并同步文章</p>
                   </div>
                 ) : (
-                  creationTopics.map((topic) => {
-                    console.log('🐛 [调试] 渲染选题:', topic)
+                                creationTopics.map((topic) => {
                     const isSelected = selectedCreationTopic?.id === topic.id
                     return (
                     <div
@@ -1710,7 +1667,6 @@ function CreatePageContent() {
                           : 'border-gray-200 hover:bg-purple-50'
                       }`}
                       onClick={() => {
-                        console.log('🐛 [调试] div被点击:', topic.title)
                         // 直接触发选择逻辑
                         const newSelection = {
                           ...topic,
@@ -1719,7 +1675,6 @@ function CreatePageContent() {
                           referenceAuthor: topic.source_author || '未知作者',
                           referenceReads: topic.source_reads || 0
                         }
-                        console.log('🐛 [调试] onClick - 准备设置selectedCreationTopic:', newSelection)
                         setSelectedCreationTopic(newSelection)
                       }}
                     >
@@ -2257,7 +2212,7 @@ function CreatePageContent() {
                   </label>
                   {hasCover && (
                     <p className="text-xs text-gray-500 mt-1">
-                      第一张图将作为公众号封面(2.35:1),其余图片为正文配图({imageRatio})
+                      第一张图将作为公众号封面,其余图片为正文配图({imageRatio})
                     </p>
                   )}
                 </div>
@@ -2614,67 +2569,7 @@ function CreatePageContent() {
                 {generatedArticles[currentArticleIndex] && (
                   <>
                     <div className="flex-1 overflow-y-auto p-6">
-                      {/* 封面图直接显示在文章顶部 */}
-                      {generatedArticles[currentArticleIndex].cover && (
-                        <div className="mb-6">
-                          <div className="w-full rounded-lg shadow-lg overflow-hidden" style={{ aspectRatio: '2.35/1' }}>
-                            {(() => {
-                              const cover = generatedArticles[currentArticleIndex].cover
-                              const coverUrl = typeof cover === 'string' ? cover : cover?.url || ''
-                              const coverDesc = typeof cover === 'object' ? cover?.description : (typeof cover === 'string' ? 'AI生成封面' : '封面图片')
-
-                              if (!coverUrl || coverUrl.includes('AI generate cover') || coverUrl.includes('placeholder')) {
-                                // 如果没有有效的封面URL，显示占位图
-                                console.log('⚠️ 封面URL无效或缺失:', coverUrl, cover)
-                                return (
-                                  <div className="w-full h-full bg-gradient-to-br from-pink-100 to-purple-100 flex items-center justify-center">
-                                    <div className="text-center">
-                                      <ImageIcon className="w-12 h-12 text-pink-400 mx-auto mb-3" />
-                                      <p className="text-gray-600 font-medium">封面图片生成失败</p>
-                                      <p className="text-sm text-gray-500 mt-1">请检查图片生成服务配置</p>
-                                    </div>
-                                  </div>
-                                )
-                              }
-
-                              return (
-                                <img
-                                  src={coverUrl}
-                                  alt={coverDesc}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    console.error('❌ 封面图片加载失败:', {
-                                      cover,
-                                      coverUrl,
-                                      type: typeof cover
-                                    })
-                                    const target = e.currentTarget
-                                    target.style.display = 'none'
-                                    // 显示错误占位图
-                                    target.parentElement!.innerHTML = `
-                                      <div class="w-full h-full bg-gradient-to-br from-pink-100 to-purple-100 flex items-center justify-center">
-                                        <div class="text-center">
-                                          <div class="w-12 h-12 bg-pink-400 rounded-full mx-auto mb-3 flex items-center justify-center">
-                                            <span class="text-white text-xl">!</span>
-                                          </div>
-                                          <p class="text-gray-600 font-medium">封面图片无法加载</p>
-                                          <p class="text-sm text-gray-500 mt-1">URL可能无效或已过期</p>
-                                        </div>
-                                      </div>
-                                    `
-                                  }}
-                                />
-                              )
-                            })()}
-                          </div>
-                          {typeof generatedArticles[currentArticleIndex].cover === 'object' &&
-                            generatedArticles[currentArticleIndex].cover?.description && (
-                              <p className="text-xs text-gray-500 mt-2 text-center italic">
-                                封面：{generatedArticles[currentArticleIndex].cover.description}
-                              </p>
-                            )}
-                        </div>
-                      )}
+                      {/* 移除封面图，直接显示文章标题 */}
 
                       {!isEditing ? (
                         <h1 className="text-2xl font-bold text-gray-900 mb-6">
