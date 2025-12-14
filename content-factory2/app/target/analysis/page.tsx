@@ -952,23 +952,59 @@ function TargetAnalysisContent() {
         <div>
           {/* 结果统计 */}
           <div className="bg-white rounded-xl p-4 border border-gray-200 mb-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                <Trophy className="w-5 h-5 mr-2 text-yellow-500" />
-                发现 {filteredArticles.length} 篇爆款文章
-              </h2>
-              <p className="text-sm text-gray-500">
-                来自 {authorsData.size} 个不同作者
-              </p>
-            </div>
+            {searchMode === 'keyword' ? (
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <Trophy className="w-5 h-5 mr-2 text-yellow-500" />
+                  发现 {filteredArticles.length} 篇爆款文章
+                </h2>
+                <p className="text-sm text-gray-500">
+                  来自 {authorsData.size} 个不同作者
+                </p>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                    <User className="w-5 h-5 mr-2 text-blue-500" />
+                    公众号「{accountName}」文章列表
+                  </h2>
+                </div>
+                {accountStats && (
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                    <div className="text-center">
+                      <div className="font-semibold text-purple-600">{accountStats.totalArticles}</div>
+                      <div className="text-gray-500">总文章数</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-semibold text-blue-600">{accountStats.recentArticles}</div>
+                      <div className="text-gray-500">半年内</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-semibold text-green-600">{accountStats.avgReads.toLocaleString()}</div>
+                      <div className="text-gray-500">平均阅读</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-semibold text-red-600">{accountStats.maxReads.toLocaleString()}</div>
+                      <div className="text-gray-500">最高阅读</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-semibold text-orange-600">{accountStats.totalReads.toLocaleString()}</div>
+                      <div className="text-gray-500">总阅读量</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* 文章列表 */}
           <div className="space-y-4">
-            {filteredArticles.map((article, index) => {
-              const authorData = authorsData.get(article.wx_name || '')
-              const isCollected = collectedArticles.has(article.title)
-              const isAuthorCollected = collectedAuthors.has(article.wx_name || '')
+            {searchMode === 'keyword' ? (
+              filteredArticles.map((article, index) => {
+                const authorData = authorsData.get(article.wx_name || '')
+                const isCollected = collectedArticles.has(article.title)
+                const isAuthorCollected = collectedAuthors.has(article.wx_name || '')
 
               return (
                 <div key={index} className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
@@ -1092,7 +1128,84 @@ function TargetAnalysisContent() {
                   </div>
                 </div>
               )
-            })}
+              })
+            ) : (
+              // 公众号文章列表
+              accountArticles.map((article, index) => {
+                const viralLevel = {
+                  label: article.reads >= 100000 ? '超级爆款' : article.reads >= 50000 ? '热门爆款' : article.reads >= 10000 ? '入门爆款' : '普通文章',
+                  badge: article.reads >= 100000 ? '🔥' : article.reads >= 50000 ? '⭐' : article.reads >= 10000 ? '📈' : '',
+                  color: article.reads >= 100000 ? 'bg-red-100 text-red-800 border-red-300' :
+                         article.reads >= 50000 ? 'bg-orange-100 text-orange-800 border-orange-300' :
+                         article.reads >= 10000 ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                         'bg-gray-100 text-gray-800 border-gray-300'
+                }
+
+                return (
+                  <div key={index} className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <span className={`px-2 py-1 text-xs rounded-full border ${viralLevel.color}`}>
+                            {viralLevel.badge} {viralLevel.label}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {new Date(article.publishTime).toLocaleDateString()}
+                          </span>
+                        </div>
+
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2 leading-6">
+                          {article.title}
+                        </h3>
+
+                        <div className="flex items-center space-x-4 text-sm text-gray-600 mb-3">
+                          <div className="flex items-center space-x-1">
+                            <User className="w-4 h-4" />
+                            <span>{article.authorName}</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <Eye className="w-4 h-4" />
+                            <span>{article.reads.toLocaleString()}</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <Heart className="w-4 h-4" />
+                            <span>{article.likes.toLocaleString()}</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <TrendingUp className="w-4 h-4" />
+                            <span>{article.forwards.toLocaleString()}</span>
+                          </div>
+                        </div>
+
+                        {/* 操作按钮 */}
+                        <div className="flex items-center space-x-2">
+                          <a
+                            href={article.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1 text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg transition-colors flex items-center"
+                          >
+                            <ExternalLink className="w-4 h-4 mr-1" />
+                            查看原文
+                          </a>
+
+                          <button
+                            onClick={() => {
+                              // TODO: 实现收藏到对标库功能
+                              console.log('收藏文章:', article)
+                            }}
+                            className="px-3 py-1 text-sm bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-lg transition-colors"
+                          >
+                            <Plus className="w-4 h-4 inline mr-1" />
+                            加入对标
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            )}
           </div>
         </div>
       )}
