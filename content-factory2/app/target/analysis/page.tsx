@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 import { withAuth } from '@/lib/auth-context'
-import { searchWeChatArticles, analyzeAuthorViralStats } from '@/lib/wechat-api'
+import { searchWeChatArticles, analyzeAuthorViralStats, searchAccountArticles, getAccountArticleStats, AccountArticle } from '@/lib/wechat-api'
 import { getArticleDetail, isValidArticleUrl, extractValidUrl } from '@/lib/wechat-detail-api'
 import { getAccountInfo, calculateSuitabilityScore, getSuitabilityLevel } from '@/lib/wechat-account-api'
 import { WeChatArticle } from '@/types/wechat-api'
@@ -84,18 +84,32 @@ interface AuthorData {
 }
 
 function TargetAnalysisContent() {
+  // 搜索模式
+  const [searchMode, setSearchMode] = useState<'keyword' | 'account'>('keyword')
+
+  // 关键词搜索状态
   const [keyword, setKeyword] = useState('')
+  const [articles, setArticles] = useState<WeChatArticle[]>([])
+  const [extendedArticles, setExtendedArticles] = useState<ExtendedArticle[]>([])
+
+  // 公众号搜索状态
+  const [accountName, setAccountName] = useState('')
+  const [accountArticles, setAccountArticles] = useState<AccountArticle[]>([])
+  const [accountStats, setAccountStats] = useState<any>(null)
+
+  // 通用状态
   const [isSearching, setIsSearching] = useState(false)
   const [showResults, setShowResults] = useState(false)
   const [searchError, setSearchError] = useState('')
-  const [articles, setArticles] = useState<WeChatArticle[]>([])
-  const [extendedArticles, setExtendedArticles] = useState<ExtendedArticle[]>([])
 
   // 筛选状态
   const [timeRange, setTimeRange] = useState<number>(365)
   const [minReadCount, setMinReadCount] = useState<number>(10000)
   const [accountScale, setAccountScale] = useState<string>('all')
   const [sortBy, setSortBy] = useState<'reads' | 'likes' | 'engagement'>('reads')
+
+  // 公众号搜索时间筛选
+  const [accountTimeRange, setAccountTimeRange] = useState<'recent' | 'all'>('all')
 
   // 作者数据
   const [authorsData, setAuthorsData] = useState<Map<string, AuthorData>>(new Map())
@@ -179,8 +193,8 @@ function TargetAnalysisContent() {
     return validArticles
   }
 
-  // 搜索文章
-  const handleSearch = async () => {
+  // 关键词搜索文章
+  const handleKeywordSearch = async () => {
     if (!keyword.trim()) {
       setSearchError('请输入搜索关键词')
       return
@@ -250,6 +264,57 @@ function TargetAnalysisContent() {
       setSearchError(error instanceof Error ? error.message : '搜索失败，请重试')
     } finally {
       setIsSearching(false)
+    }
+  }
+
+  // 公众号搜索文章
+  const handleAccountSearch = async () => {
+    if (!accountName.trim()) {
+      setSearchError('请输入公众号名称')
+      return
+    }
+
+    setIsSearching(true)
+    setSearchError('')
+    setShowResults(false)
+
+    try {
+      // 搜索公众号文章
+      const articles = await searchAccountArticles({
+        accountName: accountName.trim(),
+        timeRange: accountTimeRange,
+        maxPages: 10
+      })
+
+      if (articles && articles.length > 0) {
+        setAccountArticles(articles)
+
+        // 获取公众号统计信息
+        const stats = await getAccountArticleStats({
+          accountName: accountName.trim(),
+          timeRange: 'all'
+        })
+        setAccountStats(stats)
+
+        setShowResults(true)
+        setSearchError('')
+      } else {
+        setSearchError('未找到该公众号的文章')
+      }
+    } catch (error) {
+      console.error('公众号搜索失败:', error)
+      setSearchError(error instanceof Error ? error.message : '公众号搜索失败，请重试')
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  // 统一的搜索处理函数
+  const handleSearch = () => {
+    if (searchMode === 'keyword') {
+      handleKeywordSearch()
+    } else {
+      handleAccountSearch()
     }
   }
 
@@ -662,37 +727,69 @@ function TargetAnalysisContent() {
         <p className="text-gray-500 mt-1">
           发现爆款文章，分析优质作者，建立个人对标库
         </p>
+      </div>
 
-        {/* 爆款定义说明 */}
-        <div className="mt-3 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-2">
-          <p className="text-xs text-purple-700">
-            <strong>爆款标准：</strong>
-            <span className="ml-2">🔥 10万+ | ⭐ 5万+ | 📈 1万+阅读</span>
-          </p>
+      {/* 页签导航 */}
+      <div className="mb-6">
+        <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+          <button
+            onClick={() => setSearchMode('keyword')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors flex items-center justify-center ${
+              searchMode === 'keyword'
+                ? 'bg-white text-purple-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Search className="w-4 h-4 mr-2" />
+            关键词检索
+          </button>
+          <button
+            onClick={() => setSearchMode('account')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors flex items-center justify-center ${
+              searchMode === 'account'
+                ? 'bg-white text-purple-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <User className="w-4 h-4 mr-2" />
+            公众号检索
+          </button>
         </div>
       </div>
 
       {/* 搜索区域 */}
       <div className="bg-white rounded-xl p-6 border border-gray-200 mb-6">
-        <div className="flex items-start space-x-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-                placeholder="输入关键词，如：赚钱、副业、理财..."
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-              />
-            </div>
+        {/* 爆款定义说明 - 只在关键词模式显示 */}
+        {searchMode === 'keyword' && (
+          <div className="mb-4 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-2">
+            <p className="text-xs text-purple-700">
+              <strong>爆款标准：</strong>
+              <span className="ml-2">🔥 10万+ | ⭐ 5万+ | 📈 1万+阅读</span>
+            </p>
           </div>
-          <button
-            onClick={handleSearch}
-            disabled={!keyword.trim() || isSearching}
-            className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg flex items-center space-x-2"
-          >
+        )}
+
+        {/* 关键词搜索界面 */}
+        {searchMode === 'keyword' && (
+          <div className="flex items-start space-x-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  placeholder="输入关键词，如：赚钱、副业、理财..."
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                />
+              </div>
+            </div>
+            <button
+              onClick={handleSearch}
+              disabled={!keyword.trim() || isSearching}
+              className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg flex items-center space-x-2"
+            >
             {isSearching ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -706,8 +803,10 @@ function TargetAnalysisContent() {
             )}
           </button>
         </div>
+        )}
 
-        {/* 筛选器 */}
+        {/* 筛选器 - 只在关键词模式显示 */}
+        {searchMode === 'keyword' && (
         <div className="mt-4 space-y-4">
           <div className="flex items-center space-x-6">
             <span className="text-sm font-medium text-gray-700 flex items-center">
@@ -802,6 +901,43 @@ function TargetAnalysisContent() {
             </div>
           </div>
         </div>
+        )}
+
+        {/* 公众号搜索界面 */}
+        {searchMode === 'account' && (
+          <div className="flex items-start space-x-4">
+            <div className="flex-1">
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  value={accountName}
+                  onChange={(e) => setAccountName(e.target.value)}
+                  placeholder="输入公众号名称，如：洞见、人民日报..."
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                />
+              </div>
+            </div>
+            <button
+              onClick={handleSearch}
+              disabled={!accountName.trim() || isSearching}
+              className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg flex items-center space-x-2"
+            >
+              {isSearching ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>搜索中...</span>
+                </>
+              ) : (
+                <>
+                  <Search className="w-5 h-5" />
+                  <span>开始搜索</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 错误提示 */}
