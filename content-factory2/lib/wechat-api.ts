@@ -16,8 +16,9 @@ export interface AccountArticle {
 // 公众号文章搜索参数接口
 export interface AccountSearchParams {
   accountName: string
-  timeRange?: 'recent' | 'all' // recent: 半年内, all: 全部
+  timeRange?: 'recent' | 'all' | 'three_months' | 'six_months' // 更细的时间范围
   maxPages?: number
+  onlyViral?: boolean // 是否只显示爆款文章
 }
 import { ApiConfigManager } from './api-config'
 import { ApiProvider } from '@/types/api-config'
@@ -236,25 +237,55 @@ export async function searchAccountArticles(params: AccountSearchParams): Promis
     throw new Error('微信搜索API密钥未配置，请在设置中配置API密钥')
   }
 
-  const { accountName, timeRange = 'all', maxPages = 10 } = params
+  const {
+    accountName,
+    timeRange = 'six_months', // 默认近半年
+    maxPages = 20, // 增加搜索页数
+    onlyViral = false // 默认显示所有文章
+  } = params
 
-  // 使用现有的按作者搜索功能，但增加时间筛选逻辑
   try {
+    console.log(`开始搜索公众号: ${accountName}, 时间范围: ${timeRange}, 最大页数: ${maxPages}`)
+
     const allArticles = await searchArticlesByAuthor(accountName, maxPages)
+
+    console.log(`搜索完成，找到 ${allArticles.length} 篇文章`)
 
     // 时间筛选逻辑
     const now = Date.now()
-    const sixMonthsAgo = now - (6 * 30 * 24 * 60 * 60 * 1000) // 大概6个月前
+    let timeThreshold = 0
+
+    switch (timeRange) {
+      case 'three_months':
+        timeThreshold = now - (3 * 30 * 24 * 60 * 60 * 1000) // 3个月前
+        break
+      case 'six_months':
+      case 'recent':
+        timeThreshold = now - (6 * 30 * 24 * 60 * 60 * 1000) // 6个月前
+        break
+      case 'all':
+      default:
+        timeThreshold = 0 // 显示全部
+    }
 
     const filteredArticles = allArticles.filter(article => {
       const publishTime = (article.timestamp || article.publish_time || 0) * 1000 // 转换为毫秒
 
-      if (timeRange === 'recent') {
-        return publishTime >= sixMonthsAgo
+      // 时间筛选
+      if (timeThreshold > 0 && publishTime < timeThreshold) {
+        return false
       }
 
-      return true // 'all' 模式不过滤时间
+      // 爆款筛选
+      if (onlyViral) {
+        const reads = article.read || 0
+        return reads >= 10000 // 只显示1万+阅读的文章
+      }
+
+      return true
     })
+
+    console.log(`筛选完成，符合条件 ${filteredArticles.length} 篇文章`)
 
     // 转换为 AccountArticle 格式
     const accountArticles: AccountArticle[] = filteredArticles.map(article => ({
@@ -268,6 +299,9 @@ export async function searchAccountArticles(params: AccountSearchParams): Promis
       authorName: accountName,
       collectedAt: Date.now()
     }))
+
+    // 按发布时间倒序排序（最新的在前）
+    accountArticles.sort((a, b) => b.publishTime - a.publishTime)
 
     return accountArticles
   } catch (error) {

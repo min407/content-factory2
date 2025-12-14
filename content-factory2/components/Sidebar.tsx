@@ -64,13 +64,13 @@ const targetAnalysisMenu = {
   children: [
     {
       href: '/target/analysis',
-      label: '智能对标分析',
+      label: '对标分析',
       icon: Target,
       description: '发现爆款文章和优质作者'
     },
     {
       href: '/target/library',
-      label: '对标库管理',
+      label: '对标选题',
       icon: Database,
       description: '管理收藏的文章和账号'
     },

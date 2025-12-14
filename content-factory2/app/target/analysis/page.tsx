@@ -13,7 +13,8 @@ import {
   Clock,
   User,
   TrendingUp,
-  Star
+  Star,
+  Download
 } from 'lucide-react'
 import DashboardLayout from '@/components/DashboardLayout'
 import { withAuth } from '@/lib/auth-context'
@@ -108,8 +109,10 @@ function TargetAnalysisContent() {
   const [accountScale, setAccountScale] = useState<string>('all')
   const [sortBy, setSortBy] = useState<'reads' | 'likes' | 'engagement'>('reads')
 
-  // 公众号搜索时间筛选
-  const [accountTimeRange, setAccountTimeRange] = useState<'recent' | 'all'>('all')
+  // 公众号搜索筛选状态
+  const [accountTimeRange, setAccountTimeRange] = useState<'three_months' | 'six_months' | 'all'>('six_months')
+  const [onlyViral, setOnlyViral] = useState(true) // 默认只显示爆款文章
+  const [accountSortBy, setAccountSortBy] = useState<'time' | 'reads'>('time') // 公众号搜索排序方式
 
   // 作者数据
   const [authorsData, setAuthorsData] = useState<Map<string, AuthorData>>(new Map())
@@ -283,7 +286,8 @@ function TargetAnalysisContent() {
       const articles = await searchAccountArticles({
         accountName: accountName.trim(),
         timeRange: accountTimeRange,
-        maxPages: 10
+        maxPages: 20, // 增加页数
+        onlyViral: onlyViral
       })
 
       if (articles && articles.length > 0) {
@@ -936,6 +940,140 @@ function TargetAnalysisContent() {
                 </>
               )}
             </button>
+          </div>
+        )}
+
+        {/* 公众号搜索筛选器 */}
+        {searchMode === 'account' && accountArticles.length > 0 && (
+          <div className="mt-4 bg-white rounded-xl p-4 border border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-gray-700 flex items-center">
+                <Filter className="w-4 h-4 mr-2" />
+                筛选器
+              </h3>
+
+              {/* 下载按钮 */}
+              <button
+                onClick={() => {
+                  // 下载所有文章数据为CSV
+                  const csvContent = [
+                    ['标题', '发布时间', '阅读量', '点赞数', '转发数', '评论数', '链接'],
+                    ...accountArticles.map(article => [
+                      article.title,
+                      new Date(article.publishTime).toLocaleDateString(),
+                      article.reads,
+                      article.likes,
+                      article.forwards,
+                      article.comments,
+                      article.url
+                    ])
+                  ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n')
+
+                  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+                  const link = document.createElement('a')
+                  link.href = URL.createObjectURL(blob)
+                  link.download = `${accountName}_文章数据_${new Date().toLocaleDateString()}.csv`
+                  link.click()
+                }}
+                className="px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center space-x-2"
+              >
+                <Download className="w-4 h-4" />
+                <span>下载全量数据</span>
+              </button>
+            </div>
+
+            <div className="flex items-center space-x-6">
+              {/* 时间范围筛选 */}
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-500">时间范围:</span>
+                <div className="flex space-x-1">
+                  {[
+                    { value: 'three_months', label: '近3个月' },
+                    { value: 'six_months', label: '近6个月' },
+                    { value: 'all', label: '全部' }
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => {
+                        setAccountTimeRange(option.value as any)
+                        handleAccountSearch()
+                      }}
+                      className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                        accountTimeRange === option.value
+                          ? 'bg-purple-100 text-purple-700 border border-purple-300'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 爆款筛选 */}
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-500">文章类型:</span>
+                <div className="flex space-x-1">
+                  {[
+                    { value: true, label: '仅爆款' },
+                    { value: false, label: '全部' }
+                  ].map((option) => (
+                    <button
+                      key={option.value.toString()}
+                      onClick={() => {
+                        setOnlyViral(option.value)
+                        handleAccountSearch()
+                      }}
+                      className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                        onlyViral === option.value
+                          ? 'bg-purple-100 text-purple-700 border border-purple-300'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 排序方式 */}
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-500">排序:</span>
+                <div className="flex space-x-1">
+                  {[
+                    { value: 'time', label: '发布时间' },
+                    { value: 'reads', label: '阅读量' }
+                  ].map((sort) => (
+                    <button
+                      key={sort.value}
+                      onClick={() => {
+                        setAccountSortBy(sort.value as any)
+                        // 重新排序当前数据
+                        if (sort.value === 'reads') {
+                          setAccountArticles([...accountArticles].sort((a, b) => b.reads - a.reads))
+                        } else {
+                          setAccountArticles([...accountArticles].sort((a, b) => b.publishTime - a.publishTime))
+                        }
+                      }}
+                      className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                        accountSortBy === sort.value
+                          ? 'bg-purple-100 text-purple-700 border border-purple-300'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {sort.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-2 text-xs text-gray-500">
+              当前显示：{accountArticles.length} 篇文章
+              {onlyViral && '（仅爆款：阅读量≥1万）'}
+              {accountTimeRange === 'three_months' && '（近3个月）'}
+              {accountTimeRange === 'six_months' && '（近6个月）'}
+            </div>
           </div>
         )}
       </div>
