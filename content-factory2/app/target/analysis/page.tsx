@@ -657,7 +657,7 @@ function TargetAnalysisContent() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center">
           <Trophy className="w-7 h-7 mr-3 text-purple-600" />
-          智能对标分析
+          对标分析
         </h1>
         <p className="text-gray-500 mt-1">
           发现爆款文章，分析优质作者，建立个人对标库
