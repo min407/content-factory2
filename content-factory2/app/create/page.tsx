@@ -56,6 +56,12 @@ import {
 } from '@/lib/data-sync'
 import { HistoryManager, DraftManager } from '@/lib/content-management'
 import { IMAGE_STYLES, IMAGE_RATIOS, COVER_TEMPLATES } from '@/lib/content-cache'
+import {
+  ErrorDialog,
+  identifyErrorType,
+  useErrorDialog
+} from '@/components/error-dialog'
+import { ErrorHandler, EnhancedError } from '@/lib/error-handler'
 
 // 文章结构类型配置
 const ARTICLE_STRUCTURE_TYPES = [
@@ -274,6 +280,12 @@ function CreatePageContent() {
   // 错误和提示状态
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+
+  // 错误弹窗状态
+  const [showErrorDialog, setShowErrorDialog] = useState(false)
+  const [errorDialogType, setErrorDialogType] = useState<'openrouter_token' | 'jzl_balance' | 'jzl_api' | 'image_generation' | 'network' | 'timeout' | 'unknown'>('unknown')
+  const [errorDialogMessage, setErrorDialogMessage] = useState<string>()
+  const [errorDialogDetails, setErrorDialogDetails] = useState<string>()
 
   // 历史记录状态
   const [showHistory, setShowHistory] = useState(false)
@@ -532,6 +544,37 @@ function CreatePageContent() {
       setTimeout(() => setError(null), 3000)
     } finally {
       setIsSyncing(false)
+    }
+  }, [])
+
+  // 处理错误并显示弹窗
+  const handleError = useCallback((error: unknown, context?: string) => {
+    console.error(`${context || '操作'}失败:`, error)
+
+    // 尝试识别错误类型
+    let errorMessage = '操作失败'
+    let errorDetails = ''
+
+    if (error instanceof Error) {
+      errorMessage = error.message
+      errorDetails = error.stack || ''
+    } else if (typeof error === 'string') {
+      errorMessage = error
+    }
+
+    // 识别错误类型
+    const identifiedType = identifyErrorType(errorMessage)
+
+    // 对于严重错误（如API密钥问题），显示弹窗
+    if (['openrouter_token', 'jzl_balance', 'jzl_api', 'image_generation'].includes(identifiedType)) {
+      setErrorDialogType(identifiedType)
+      setErrorDialogMessage(errorMessage)
+      setErrorDialogDetails(errorDetails)
+      setShowErrorDialog(true)
+    } else {
+      // 对于其他错误，使用简单的toast提示
+      setError(errorMessage)
+      setTimeout(() => setError(null), 5000)
     }
   }, [])
 
@@ -966,8 +1009,7 @@ function CreatePageContent() {
       }
 
     } catch (error) {
-      console.error('生成文章失败:', error)
-      setError(error instanceof Error ? error.message : '生成文章失败')
+      handleError(error, '生成文章')
     } finally {
       setIsGenerating(false)
       setGenerationProgress(0)
@@ -992,7 +1034,8 @@ function CreatePageContent() {
     extractKeyPoints,
     analyzeWritingStyle,
     analyzeContentStructure,
-    determineCreationStrategy
+    determineCreationStrategy,
+    handleError
   ])
 
   // 复制文章内容
@@ -1241,13 +1284,11 @@ function CreatePageContent() {
         throw new Error('封面生成失败')
       }
     } catch (error) {
-      console.error('重新生成封面失败:', error)
-      setError('封面生成失败，请重试')
-      setTimeout(() => setError(null), 3000)
+      handleError(error, '重新生成封面')
     } finally {
       setRegeneratingCover(false)
     }
-  }, [generatedArticles, currentArticleIndex])
+  }, [generatedArticles, currentArticleIndex, handleError])
 
   // 开始编辑
   const handleStartEdit = useCallback(() => {
@@ -1394,6 +1435,7 @@ function CreatePageContent() {
   }
 
   return (
+    <>
     <div className="p-6">
         {/* 页面标题 */}
         <div className="mb-6">
@@ -2874,6 +2916,33 @@ function CreatePageContent() {
         )}
 
     </div>
+
+    {/* 错误弹窗 */}
+    <ErrorDialog
+      isOpen={showErrorDialog}
+      errorType={errorDialogType}
+      customMessage={errorDialogMessage}
+      technicalDetails={errorDialogDetails}
+      onClose={() => setShowErrorDialog(false)}
+      onOpenSettings={() => {
+        // 跳转到设置页面
+        window.location.href = '/settings'
+      }}
+      onShowLog={() => {
+        // 打开控制台
+        console.log('=== 错误日志 ===')
+        const { ErrorLogger } = require('@/lib/error-handler')
+        const logs = ErrorLogger.getRecent(20)
+        console.table(logs.map(log => ({
+          时间: new Date(log.timestamp).toLocaleString(),
+          错误代码: log.error.code,
+          用户消息: log.error.userMessage,
+          上下文: log.context
+        })))
+        alert('错误日志已打印到控制台，请按F12查看')
+      }}
+    />
+  </>
   )
 }
 

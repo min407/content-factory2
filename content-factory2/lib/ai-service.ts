@@ -159,20 +159,28 @@ async function callOpenAI(
   console.log('🔍 [DEBUG] 请求URL:', config.apiBase + '/chat/completions')
   console.log('🔍 [DEBUG] 请求头:', headers)
 
-  const response = await fetch(config.apiBase + '/chat/completions', {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      model: config.model,
-      messages,
-      temperature,
-      response_format: { type: 'text' },
-    }),
-  })
+  // 使用错误处理器包装API调用
+  const { ErrorHandler } = await import('./error-handler')
+
+  const response = await ErrorHandler.wrap(async () => {
+    return await fetch(config.apiBase + '/chat/completions', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: config.model,
+        messages,
+        temperature,
+        response_format: { type: 'text' },
+      }),
+    })
+  }, 'OpenAI API调用')
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
-    throw new Error('OpenAI API错误: ' + (error.error?.message || response.statusText));
+    // 使用增强的错误处理
+    const enhancedError = await ErrorHandler.fromFetchResponse(response, 'OpenAI API错误')
+    const { ErrorLogger } = await import('./error-handler')
+    ErrorLogger.log(enhancedError, 'AI文本生成')
+    throw enhancedError
   }
 
   const data = await response.json()
@@ -1378,53 +1386,75 @@ export async function cleanupExpiredData(): Promise<void> {
 
 /**
  * 生成单个AI图片（使用SiliconFlow API）
+ * @throws {EnhancedError} 增强的错误对象，包含用户友好的错误信息
  */
 async function generateSingleImage(prompt: string, imageRatio: string = '2.35:1'): Promise<string> {
-  // 优先使用用户配置的API密钥
-  const userConfig = await UserApiConfigManager.getConfig(ApiProvider.SILICONFLOW)
-  const apiKey = userConfig?.apiKey || process.env.SILICONFLOW_API_KEY || ''
-  const apiBase = userConfig?.apiBase || process.env.SILICONFLOW_API_BASE || 'https://api.siliconflow.cn/v1'
-  const model = userConfig?.model || process.env.SILICONFLOW_MODEL || 'Kwai-Kolors/Kolors'
+  // 导入错误处理器
+  const { ErrorHandler } = await import('./error-handler')
 
-  // 如果没有API key，直接使用fallback图片
-  if (!apiKey) {
-    console.log('SiliconFlow API key not configured, using fallback image')
-    return getFallbackImage(prompt, imageRatio)
+  try {
+    // 优先使用用户配置的API密钥
+    const userConfig = await UserApiConfigManager.getConfig(ApiProvider.SILICONFLOW)
+    const apiKey = userConfig?.apiKey || process.env.SILICONFLOW_API_KEY || ''
+    const apiBase = userConfig?.apiBase || process.env.SILICONFLOW_API_BASE || 'https://api.siliconflow.cn/v1'
+    const model = userConfig?.model || process.env.SILICONFLOW_MODEL || 'Kwai-Kolors/Kolors'
+
+    // 如果没有API key，直接使用fallback图片
+    if (!apiKey) {
+      console.log('SiliconFlow API key not configured, using fallback image')
+      return getFallbackImage(prompt, imageRatio)
+    }
+
+    // 根据图片比例确定尺寸
+    const sizeMap: Record<string, string> = {
+      '2.35:1': '1024x436',   // 电影宽屏
+      '1:1': '1024x1024',     // 正方形
+      '4:3': '1024x768',      // 标准比例
+      '16:9': '1024x576',     // 宽屏
+      '3:4': '768x1024',      // 竖版
+      '9:16': '576x1024'      // 手机屏
+    }
+    const size = sizeMap[imageRatio] || '1024x436'
+
+    const response = await fetch(apiBase + '/images/generations', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey,
+      },
+      body: JSON.stringify({
+        model,
+        prompt: prompt + ', high quality, professional illustration style, no text',
+        n: 1,
+        size,
+        response_format: 'url'
+      }),
+    })
+
+    if (!response.ok) {
+      throw await ErrorHandler.fromFetchResponse(response, '图片生成API错误')
+    }
+
+    const data = await response.json()
+    return data.data[0]?.url || ''
+
+  } catch (error) {
+    // 捕获并增强错误
+    const enhancedError = ErrorHandler.capture(error, 'generateSingleImage')
+
+    // 记录错误日志
+    const { ErrorLogger } = await import('./error-handler')
+    ErrorLogger.log(enhancedError, '图片生成')
+
+    // 如果错误不可重试（如API密钥无效），使用fallback图片
+    if (!enhancedError.canRetry) {
+      console.warn('图片生成失败且不可重试，使用fallback图片:', enhancedError.userMessage)
+      return getFallbackImage(prompt, imageRatio)
+    }
+
+    // 对于可重试的错误，仍然抛出让上层处理
+    throw enhancedError
   }
-
-  // 根据图片比例确定尺寸
-  const sizeMap: Record<string, string> = {
-    '2.35:1': '1024x436',   // 电影宽屏
-    '1:1': '1024x1024',     // 正方形
-    '4:3': '1024x768',      // 标准比例
-    '16:9': '1024x576',     // 宽屏
-    '3:4': '768x1024',      // 竖版
-    '9:16': '576x1024'      // 手机屏
-  }
-  const size = sizeMap[imageRatio] || '1024x436'
-
-  const response = await fetch(apiBase + '/images/generations', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + apiKey,
-    },
-    body: JSON.stringify({
-      model,
-      prompt: prompt + ', high quality, professional illustration style, no text',
-      n: 1,
-      size,
-      response_format: 'url'
-    }),
-  })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
-    throw new Error('SiliconFlow API错误: ' + (error.error?.message || response.statusText));
-  }
-
-  const data = await response.json()
-  return data.data[0]?.url || ''
 }
 
 /**
