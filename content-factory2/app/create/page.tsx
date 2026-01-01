@@ -256,7 +256,7 @@ function CreatePageContent() {
   const [writingStyle, setWritingStyle] = useState('professional')
   const [imageCount, setImageCount] = useState('1')
   const [imageStyle, setImageStyle] = useState('auto')
-  const [imageRatio, setImageRatio] = useState('16:9')
+  const [imageRatio, setImageRatio] = useState('2.35:1') // 默认使用2.35:1电影宽屏比例
   const [hasCover, setHasCover] = useState(true) // 默认包含封面图
 
   // 批量创作状态
@@ -350,7 +350,7 @@ function CreatePageContent() {
               if (params.style) setWritingStyle(params.style)
               if (params.imageCount) setImageCount(params.imageCount)
               if (params.imageStyle) setImageStyle(params.imageStyle)
-              if (params.imageRatio) setImageRatio(params.imageRatio) // 如果有保存的比例则使用，否则保持默认16:9
+              if (params.imageRatio) setImageRatio(params.imageRatio === '4:3' ? '2.35:1' : params.imageRatio) // 如果旧值是4:3，自动更新为2.35:1
               if (params.hasCover !== undefined) setHasCover(params.hasCover) // 恢复封面选项
             }
 
@@ -435,7 +435,7 @@ function CreatePageContent() {
               if (state.writingStyle) setWritingStyle(state.writingStyle)
               if (state.imageCount) setImageCount(state.imageCount)
               if (state.imageStyle) setImageStyle(state.imageStyle)
-              if (state.imageRatio) setImageRatio(state.imageRatio)
+              if (state.imageRatio) setImageRatio(state.imageRatio === '4:3' ? '2.35:1' : state.imageRatio) // 如果旧值是4:3，自动更新为2.35:1
               if (state.batchCount) setBatchCount(state.batchCount)
               if (state.enableBatch !== undefined) setEnableBatch(state.enableBatch)
               if (state.generatedArticles) setGeneratedArticles(state.generatedArticles)
@@ -1361,7 +1361,7 @@ function CreatePageContent() {
       if (params.style) setWritingStyle(params.style)
       if (params.imageCount) setImageCount(params.imageCount.toString())
       if (params.imageStyle) setImageStyle(params.imageStyle)
-      if (params.imageRatio) setImageRatio(params.imageRatio)
+      if (params.imageRatio) setImageRatio(params.imageRatio === '4:3' ? '2.35:1' : params.imageRatio)
     }
 
     setSuccess('已恢复历史文章')

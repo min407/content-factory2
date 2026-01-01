@@ -52,6 +52,12 @@ export const IMAGE_STYLES: ImageStyle[] = [
  */
 export const IMAGE_RATIOS: ImageRatio[] = [
   {
+    value: '2.35:1',
+    label: '封面 2.35:1（推荐）',
+    description: '适合公众号封面、横幅',
+    aspectRatio: '2.35:1'
+  },
+  {
     value: '1:1',
     label: '正方形 1:1',
     description: '适合社交媒体头像、封面',

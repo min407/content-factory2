@@ -1091,8 +1091,8 @@ export async function generateSmartArticleImages(
         // 3.1 为每个提示词添加风格修饰
         const styledPrompt = applyImageStyle(prompt, styleConfig, index)
 
-        // 3.2 生成图片
-        const imageUrl = await generateSingleImageWithRetry(styledPrompt)
+        // 3.2 生成图片（传递imageRatio参数）
+        const imageUrl = await generateSingleImageWithRetry(styledPrompt, imageRatio)
 
         return imageUrl
       } catch (error) {
@@ -1137,12 +1137,13 @@ async function generateImagePromptsFromContent(
       ? articleContent.substring(0, 2000) + '...'
       : articleContent
 
-    const prompt = '请基于以下文章内容，生成 ' + count + ' 个完全不同的插画提示词，每张图都必须有独特的视觉识别。\n\n文章标题：' + articleTitle + '\n文章内容：' + contentForAnalysis + '\n\n🔥 **严格禁止重复命令** - 违者零分：\n1. **绝对禁止重复**: 任何两个提示词都不能有相似的场景、人物、动作、构图\n2. **绝对禁止相似**: 避免使用同义词、相似的描述方式、重复的元素\n3. **强制视觉差异**: 每张图都要让人一眼就能区分，完全不同\n\n🎯 **差异化具体要求**:\n第1张图：**引入场景** - 矛盾/问题的初始状态，冷色调，单人，室内\n第2张图：**转折过程** - 思考/寻找解决方案，暖色调，多人，室外\n第3张图：**行动实践** - 具体执行的关键时刻，中性色调，双人，特写\n第4张图：**成果展示** - 成功改变的瞬间，明亮色调，群体，远景\n\n📋 **每张图必须包含的差异化元素**：\n- **时间**: 早晨/午后/傍晚/深夜（全部分配不同的时间）\n- **地点**: 办公室/咖啡馆/公园/会议室/家里（5个不同地点循环）\n- **人物**: 年轻人/中年人/老人/男/女/混合（不同角色）\n- **视角**: 仰视/俯视/平视/侧视/特写（完全不同视角）\n- **情绪**: 困惑/专注/兴奋/满足/期待（不同情感状态）\n- **动作**: 思考/讨论/实践/庆祝/展望（不同行为）\n\n🎨 **风格统一性要求**:\n- 统一的插画风格（扁平化、现代简约）\n- 一致的色彩体系（每张图有主色调但保持整体协调）\n- 相同的艺术表现手法（线条、光影、质感）\n\n请直接输出 ' + count + ' 行提示词，每行一个，不要编号。确保每行都是完全不同的场景描述：\n\n示例（仅供参考结构，不要抄袭）：\n清晨办公室窗边，年轻人低头沉思的侧脸特写，冷蓝色调\n下午咖啡馆里，两人在笔记本前激烈讨论的热烈场景，暖橙色调\n黄昏公园长椅上，中年人望着远方思考的孤独背影，中性灰色调\n夜晚城市夜景中，团队在落地窗前庆祝成功的欢乐剪影，明亮金色调\n...'
+    // 优化的提示词，强调痛点分析和主题相关
+    const prompt = '你是一位资深插画设计师和视觉内容专家。请深入分析以下文章，生成 ' + count + ' 个高质量、吸引人的插画提示词。\n\n**文章标题**: ' + articleTitle + '\n**文章内容**: ' + contentForAnalysis + '\n\n**第一步：深度分析文章**\n请先识别：\n1. **核心主题** - 文章要解决什么问题？\n2. **用户痛点** - 目标读者面临什么困扰？\n3. **解决方案** - 文章提供了什么价值？\n4. **关键比喻** - 有哪些生动的类比或形象化表达？\n5. **情感基调** - 是焦虑/困惑/希望/喜悦？\n\n**第二步：生成视觉化提示词**\n基于分析结果，生成 ' + count + ' 个完全不同的插画提示词，要求：\n\n**每张图的差异化策略**：\n- **第1张图（痛点呈现）**: 直观展示用户的困扰或问题场景，让人一眼产生共鸣\n  - 使用冷色调（蓝/灰/紫）\n  - 场景：单人面对困境的瞬间\n  - 情感：困惑、焦虑、无助\n  \n- **第2张图（转折分析）**: 展现思考、寻找答案的过程\n  - 使用暖色调（橙/黄）渐变\n  - 场景：多人讨论、学习、探索\n  - 情感：好奇、探索、希望\n  \n- **第3张图（解决方案）**: 呈现文章核心方法或行动\n  - 使用中性色调（绿/青）\n  - 场景：执行、实践、行动的关键时刻\n  - 情感：专注、坚定、行动\n  \n- **第4张图（价值成果）**: 展示改变后的美好状态\n  - 使用明亮色调（金/红）\n  - 场景：成功、满足、喜悦的庆祝时刻\n  - 情感：满足、喜悦、成就感\n\n**提示词格式要求**：\n- 每个提示词必须包含：核心关键词 + 具体场景 + 视觉风格 + 色调\n- 长度控制在20-30字（英文）或30-40字（中文）\n- 必须使用文章中的关键词和概念\n- 确保与文章高度相关，能吸引目标读者点击\n- 适合2.35:1宽屏比例（公众号封面）\n\n**示例（仅供参考结构）**：\n"职场新人困惑场景，年轻人面对电脑眉头紧锁，办公环境，冷蓝色调，现代插画风格"\n"团队学习讨论场景，多人围坐热烈交流，会议室，暖橙色调，扁平化设计"\n"实践行动瞬间，专注工作的特写场景，专业环境，中性绿色调，简约风格"\n"成功成就时刻，团队庆祝的欢乐剪影，落地窗前，明亮金色调，现代插画"\n\n请直接输出 ' + count + ' 行提示词，每行一个，不要编号，不要解释。'
 
     const response = await callOpenAI([
       {
         role: 'system',
-        content: '你是顶级插画提示词专家，专门生成完全不同的场景描述。你的核心原则是：每张图片都必须有独特的视觉识别，绝对不能有相似或重复的场景。严格遵循用户的差异化要求，确保时间、地点、人物、视角、情绪、动作都完全不同。只输出简洁的提示词，不要解释。'
+        content: '你是顶级插画设计师和视觉营销专家。你擅长：1）深入分析文章内容，准确识别用户痛点和核心主题；2）将抽象概念转化为具体、吸引人的视觉场景；3）创作让人一眼产生共鸣的插画描述。你的核心原则：每张图都必须与文章内容高度相关，精准触达用户痛点，视觉冲击力强。只输出提示词，不要解释。'
       },
       { role: 'user', content: prompt }
     ], 0.7, userConfig)
@@ -1157,12 +1158,12 @@ async function generateImagePromptsFromContent(
     // 后处理验证：检查并修复重复或相似的提示词
     prompts = validateAndFixPrompts(prompts, count, topic)
 
-    // 如果AI生成的提示词不足，补充基础提示词
+    // 如果AI生成的提示词不足，补充基于文章主题的基础提示词
     while (prompts.length < count) {
-      prompts.push(generateFallbackPrompt(topic, prompts.length))
+      prompts.push(generateFallbackPrompt(topic, prompts.length, articleTitle))
     }
 
-    console.log('生成的' + count + '个提示词，已确保完全不同');
+    console.log('基于文章痛点和主题生成了' + count + '个相关提示词');
     return prompts
 
   } catch (error) {
@@ -1296,10 +1297,10 @@ function applyImageStyle(basePrompt: string, styleConfig: ImageStyle, index: num
 /**
  * 生成单个图片（带重试机制）
  */
-async function generateSingleImageWithRetry(prompt: string, maxRetries = 2): Promise<string> {
+async function generateSingleImageWithRetry(prompt: string, imageRatio: string = '2.35:1', maxRetries = 2): Promise<string> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await generateSingleImage(prompt)
+      return await generateSingleImage(prompt, imageRatio)
     } catch (error) {
       console.error('图片生成尝试 ' + (attempt + 1) + '/' + (maxRetries + 1) + ' 失败:', error);
 
@@ -1318,13 +1319,15 @@ async function generateSingleImageWithRetry(prompt: string, maxRetries = 2): Pro
 /**
  * 生成fallback提示词
  */
-function generateFallbackPrompt(topic?: TopicWithHistory, index = 0): string {
+function generateFallbackPrompt(topic?: TopicWithHistory, index = 0, articleTitle?: string): string {
+  const title = articleTitle || topic?.title || ''
+
   const fallbackPrompts = [
-    '现代办公场景插画，简洁专业风格',
-    '学习和成长主题插画，励志温暖风格',
-    '团队协作场景插画，现代扁平化设计',
-    '创新思维概念图，抽象艺术风格',
-    '目标达成场景插画，积极向上风格'
+    title + '核心概念插画，现代简约风格',
+    title + '场景示意图，扁平化设计',
+    title + '解决方案可视化，专业风格',
+    title + '价值体现图，积极向上风格',
+    '现代办公场景插画，简洁专业风格'
   ]
 
   // 如果有主题信息，生成相关提示词
@@ -1341,12 +1344,13 @@ function generateFallbackPrompt(topic?: TopicWithHistory, index = 0): string {
 }
 
 /**
- * 生成带风格的fallback图片
+ * 生成带风格的fallback图片（使用2.35:1比例）
  */
 function getFallbackImageWithStyle(prompt: string, styleConfig: ImageStyle, index: number): string {
   // 使用不同seed确保图片多样性
   const seed = Date.now() + '_' + index + '_' + Math.random().toString(36).substring(7);
-  return 'https://picsum.photos/seed/' + seed + '/1024/1024.jpg';
+  // 使用2.35:1比例 (900x383)
+  return 'https://picsum.photos/seed/' + seed + '/900/383.jpg';
 }
 
 /**
@@ -1375,7 +1379,7 @@ export async function cleanupExpiredData(): Promise<void> {
 /**
  * 生成单个AI图片（使用SiliconFlow API）
  */
-async function generateSingleImage(prompt: string): Promise<string> {
+async function generateSingleImage(prompt: string, imageRatio: string = '2.35:1'): Promise<string> {
   // 优先使用用户配置的API密钥
   const userConfig = await UserApiConfigManager.getConfig(ApiProvider.SILICONFLOW)
   const apiKey = userConfig?.apiKey || process.env.SILICONFLOW_API_KEY || ''
@@ -1385,8 +1389,19 @@ async function generateSingleImage(prompt: string): Promise<string> {
   // 如果没有API key，直接使用fallback图片
   if (!apiKey) {
     console.log('SiliconFlow API key not configured, using fallback image')
-    return getFallbackImage(prompt)
+    return getFallbackImage(prompt, imageRatio)
   }
+
+  // 根据图片比例确定尺寸
+  const sizeMap: Record<string, string> = {
+    '2.35:1': '1024x436',   // 电影宽屏
+    '1:1': '1024x1024',     // 正方形
+    '4:3': '1024x768',      // 标准比例
+    '16:9': '1024x576',     // 宽屏
+    '3:4': '768x1024',      // 竖版
+    '9:16': '576x1024'      // 手机屏
+  }
+  const size = sizeMap[imageRatio] || '1024x436'
 
   const response = await fetch(apiBase + '/images/generations', {
     method: 'POST',
@@ -1398,7 +1413,7 @@ async function generateSingleImage(prompt: string): Promise<string> {
       model,
       prompt: prompt + ', high quality, professional illustration style, no text',
       n: 1,
-      size: '1024x1024',
+      size,
       response_format: 'url'
     }),
   })
@@ -1413,12 +1428,24 @@ async function generateSingleImage(prompt: string): Promise<string> {
 }
 
 /**
- * 获取fallback图片 - 使用更高质量的占位图服务
+ * 获取fallback图片 - 使用更高质量的占位图服务（支持不同比例）
  */
-function getFallbackImage(prompt: string): string {
+function getFallbackImage(prompt: string, imageRatio: string = '2.35:1'): string {
   // 使用picsum.photos，它提供更稳定的图片服务和更好的图片质量
   const seed = Math.random().toString(36).substring(7)
-  return 'https://picsum.photos/seed/' + seed + '/1024/1024.jpg';
+
+  // 根据图片比例确定尺寸
+  const sizeMap: Record<string, string> = {
+    '2.35:1': '900/383',    // 电影宽屏 2.35:1
+    '1:1': '1024/1024',     // 正方形 1:1
+    '4:3': '1024/768',      // 标准比例 4:3
+    '16:9': '1024/576',     // 宽屏 16:9
+    '3:4': '768/1024',      // 竖版 3:4
+    '9:16': '576/1024'      // 手机屏 9:16
+  }
+  const size = sizeMap[imageRatio] || '900/383'
+
+  return 'https://picsum.photos/seed/' + seed + '/' + size + '.jpg';
 }
 
 /**
