@@ -128,7 +128,7 @@ export interface ArticleDetail {
  */
 const API_CONFIG = {
   url: 'https://www.dajiala.com/fbmain/monitor/v3/article_html',
-  key: 'JZL134dc4c7b7886079'
+  key: 'JZLb9f5ef936c56e41f'
 };
 
 /**

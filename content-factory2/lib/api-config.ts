@@ -127,11 +127,21 @@ export class ApiConfigManager {
 
   /**
    * 获取API密钥
-   * 优先级：用户配置 > 环境变量 > 默认值
+   * 优先级：极致了API强制使用新key > 用户配置 > 环境变量 > 默认值
    */
   static getApiKey(provider: ApiProvider): string | null {
     try {
-      // 1. 优先使用用户配置
+      // 对于极致了API（微信公众号搜索、小红书搜索），强制使用新key
+      const isJzlProvider = provider === ApiProvider.WECHAT_SEARCH ||
+                           provider === ApiProvider.XIAOHONGSHU_SEARCH
+
+      if (isJzlProvider) {
+        const newKey = 'JZLb9f5ef936c56e41f'
+        console.log(`🔑 [配置] 极致了API强制使用新key (${provider}): ${newKey.substring(0, 8)}...`)
+        return newKey
+      }
+
+      // 1. 使用用户配置
       const config = this.getConfig(provider)
       if (config?.apiKey) {
         console.log(`🔑 [配置] 使用用户配置的API密钥 (${provider}): ${config.apiKey.substring(0, 8)}...`)
